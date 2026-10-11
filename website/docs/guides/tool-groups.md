@@ -85,3 +85,11 @@ Three reasons:
 
 - [`manage_tools`](/reference/tools/core/manage_tools) — full tool reference
 - [`tool_groups` resource](/reference/resources) — discoverable group catalog
+
+## Schema and context-size optimization
+
+- Long tool and parameter descriptions are compacted in `tools/list`; registered server definitions are not modified.
+- Use `get_tool_details(name="manage_scene")` to retrieve an unabridged definition only when needed.
+- Set `UNITY_MCP_TOOL_SCHEMA_COMPACTION=0` to disable description compaction.
+- Set `UNITY_MCP_DEREFERENCE_SCHEMAS=false` to keep JSON Schema `$ref` references instead of inlining repeated definitions. Use only with clients that support `$ref`; the default preserves broad compatibility.
+- Run `cd Server` then `uv run python src/benchmark_tool_schema_optimization.py` to compare serialized tool-list sizes. Token counts use the approximate four-characters-per-token estimate.

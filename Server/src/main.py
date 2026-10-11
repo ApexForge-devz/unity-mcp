@@ -16,6 +16,7 @@ from services.custom_tool_service import (
 )
 from core.config import config
 from services.registry import get_optional_group_catalog
+from services.tool_schema_optimizer import ToolSchemaCompactionMiddleware
 from starlette.routing import WebSocketRoute
 from starlette.responses import JSONResponse
 import argparse
@@ -310,8 +311,11 @@ Tool discovery and task planning:
 - The optional-group catalog below is generated from registered tool metadata. Use group names, purposes, and function names to identify capabilities.
 - Before beginning a multi-step task, plan which optional groups are likely needed and activate all of them in one call: manage_tools(action="activate", groups=["group_a", "group_b"]). Do not activate every group by default.
 - After activation, use the newly available tools directly; do not repeatedly search for or rediscover tools already exposed. If a new requirement emerges, activate only the additional group needed.
+- Tool descriptions and nested schema descriptions in tools/list are compacted by default; parameter names, types, required fields, defaults, enums, and validation constraints are preserved.
+- If a compact description or parameter meaning is unclear, call get_tool_details(name="tool_name") to retrieve the complete original description and schema. Do this only for tools that need clarification.
 - Prefer batch_execute for related Unity operations when appropriate, and reuse previously retrieved resources/results rather than repeating identical reads or mutations.
 - Group activation updates session tool visibility through MCP list-change notifications. If a client does not expose newly enabled tools, use that client's refresh/reconnect behavior rather than repeatedly activating the same groups.
+- Set UNITY_MCP_TOOL_SCHEMA_COMPACTION=0 to disable description compaction. Set UNITY_MCP_DEREFERENCE_SCHEMAS=false only when the client supports JSON Schema $ref, to avoid expanding repeated schema definitions.
 
 Optional tool groups (Core is omitted because its complete tool schemas are already available):
 {optional_group_catalog or "- No optional tool groups are currently registered."}
@@ -389,11 +393,20 @@ def _normalize_instance_token(instance_token: str | None) -> tuple[str | None, s
 def create_mcp_server(project_scoped_tools: bool) -> FastMCP:
     # Populate metadata before building connection instructions so the catalog matches registered tools.
     discover_tool_registry()
+    dereference_schemas = os.environ.get(
+        "UNITY_MCP_DEREFERENCE_SCHEMAS", "true"
+    ).strip().lower() not in {"0", "false", "no", "off"}
     mcp = FastMCP(
         name="mcp-for-unity-server",
         lifespan=server_lifespan,
         instructions=_build_instructions(project_scoped_tools),
+        dereference_schemas=dereference_schemas,
     )
+    compact_schemas = os.environ.get(
+        "UNITY_MCP_TOOL_SCHEMA_COMPACTION", "true"
+    ).strip().lower() not in {"0", "false", "no", "off"}
+    if compact_schemas:
+        mcp.add_middleware(ToolSchemaCompactionMiddleware())
 
     global custom_tool_service
     custom_tool_service = CustomToolService(
