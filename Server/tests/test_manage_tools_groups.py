@@ -131,3 +131,16 @@ async def test_batch_deactivation_uses_one_visibility_rule():
     assert ctx.disable_calls == [
         ({"group:ui", "group:testing"}, {"tool"})
     ]
+
+
+@pytest.mark.asyncio
+async def test_deactivation_without_session_rule_still_overrides_global_visibility():
+    ctx = FakeContext()
+
+    result = await manage_tools(ctx, action="deactivate", group="testing")
+
+    assert result["deactivated"] == "testing"
+    assert result["changed"] is True
+    assert ctx.disable_calls == [
+        ({"group:testing"}, {"tool"})
+    ]

@@ -41,7 +41,7 @@ For several groups:
 manage_tools(action="activate", groups=["ui", "testing", "docs"])
 ```
 
-The request validates all names before making changes and applies visibility in one rule. Already-enabled groups are skipped, and repeating the same request does not add an unnecessary visibility rule. FastMCP sends a tool-list-change notification when visibility actually changes; the client must refresh its tool list to expose the newly enabled tools.
+The request validates all names before making changes and applies visibility in one rule. Groups already covered by an explicit session rule in the requested state are skipped. With no explicit session rule, the server applies one so the request can override server-level Editor visibility. Repeating the same request then does not add another visibility rule. FastMCP sends a tool-list-change notification when visibility actually changes; the client must refresh its tool list to expose the newly enabled tools.
 
 ## Listing what's available
 

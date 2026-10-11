@@ -79,8 +79,13 @@ async def manage_tools(
             }
 
         desired_enabled = action == "activate"
-        states = await _get_session_group_states(ctx)
-        changed = [name for name in normalized if states.get(name) != desired_enabled]
+        # Only an explicit session rule proves a group is already in the requested
+        # state. Server-level Editor toggles can expose groups without a session rule.
+        session_states = await _get_explicit_session_group_states(ctx)
+        changed = [
+            name for name in normalized
+            if session_states.get(name) != desired_enabled
+        ]
         unchanged = [name for name in normalized if name not in changed]
 
         # One visibility rule for the complete requested set yields one list-change notification.
@@ -163,12 +168,11 @@ async def manage_tools(
     return {"error": f"Unknown action '{action}'"}
 
 
-async def _get_session_group_states(ctx: Context) -> dict[str, bool]:
-    """Return effective session group states, falling back to server defaults."""
+async def _get_explicit_session_group_states(ctx: Context) -> dict[str, bool]:
+    """Return only explicit session visibility rules, with the latest rule winning."""
     session_enabled: dict[str, bool] = {}
     try:
         rules = await ctx._get_visibility_rules()
-        # Rules accumulate; the latest rule mentioning a group wins.
         for rule in rules:
             tags = rule.get("tags") or []
             enabled = rule.get("enabled", True)
@@ -176,9 +180,15 @@ async def _get_session_group_states(ctx: Context) -> dict[str, bool]:
                 if isinstance(tag, str) and tag.startswith("group:"):
                     session_enabled[tag[len("group:"):]] = enabled
     except Exception:
-        pass  # No session or visibility state available: use default group state.
+        pass  # Unknown state means mutations should fail toward applying requested visibility.
+    return session_enabled
+
+
+async def _get_session_group_states(ctx: Context) -> dict[str, bool]:
+    """Return effective session group states, falling back to server defaults."""
+    explicit = await _get_explicit_session_group_states(ctx)
     return {
-        name: session_enabled.get(name, name in DEFAULT_ENABLED_GROUPS)
+        name: explicit.get(name, name in DEFAULT_ENABLED_GROUPS)
         for name in TOOL_GROUPS
     }
 
