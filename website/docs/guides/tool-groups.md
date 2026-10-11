@@ -71,7 +71,7 @@ The connection instructions already include the optional-group catalog. Use `lis
 Three reasons:
 
 1. **Prompt economy**: each visible tool adds tokens to every assistant call. Hiding what you're not using is real money saved at scale.
-2. **Routing clarity**: when the LLM picks between 50 tools versus the 30 core tools, the wrong-tool rate drops measurably.
+2. **Routing clarity**: when the LLM must choose among many specialized tools, a focused Core surface can reduce routing confusion.
 3. **Package hygiene**: tools in `probuilder` only work if `com.unity.probuilder` is installed; hiding them by default avoids confusing errors.
 
 ## Server vs. session state
