@@ -25,13 +25,9 @@ from services.registry import (
     unity_target=None,
     group=None,
     description=(
-        "Manage which tool groups are visible in this session. "
-        "Actions: list_groups (show all groups and their status), "
-        "activate (enable a group), deactivate (disable a group), "
-        "sync (refresh visibility from Unity Editor's toggle states), "
-        "reset (restore defaults). "
-        "Activating a group makes its tools appear; deactivating hides them. "
-        "Use sync after toggling tools in the Unity Editor GUI."
+        "List or manage session-visible tool groups. Plan the task first, then use "
+        "groups=[...] to activate or deactivate several optional groups in one call. "
+        "Core is available directly. Use sync only after changing the Unity Editor tool toggles."
     ),
     annotations=ToolAnnotations(
         title="Manage Tools",
@@ -49,38 +45,82 @@ async def manage_tools(
     ],
     group: Annotated[
         str | None,
-        "Group name (required for activate / deactivate). "
-        "Valid groups: " + ", ".join(sorted(TOOL_GROUPS.keys()))
+        "One group for activate/deactivate. Use groups for batches."
+    ] = None,
+    groups: Annotated[
+        list[str] | None,
+        "Multiple group names to activate/deactivate in one call. Use either group or groups, not both."
     ] = None,
 ) -> dict[str, Any]:
     if action == "list_groups":
         return await _list_groups(ctx)
 
     if action in ("activate", "deactivate"):
-        if not group:
-            return {"error": f"group is required for {action}"}
-        group = group.strip().lower()
-        if group not in TOOL_GROUPS:
-            return {"error": f"Unknown group '{group}'. Valid: {', '.join(sorted(TOOL_GROUPS))}"}
+        if group is not None and groups is not None:
+            return {"error": "Use either 'group' or 'groups', not both."}
 
-    if action == "activate":
-        tag = f"group:{group}"
-        await ctx.info(f"Activating tool group: {group}")
-        await ctx.enable_components(tags={tag}, components={"tool"})
-        return {
-            "activated": group,
-            "tools": get_group_tool_names().get(group, []),
-            "message": f"Group '{group}' is now visible. Its tools will appear in tool listings.",
-        }
+        requested = groups if groups is not None else ([group] if group is not None else [])
+        if not requested:
+            return {"error": f"group or groups is required for {action}"}
 
-    if action == "deactivate":
-        tag = f"group:{group}"
-        await ctx.info(f"Deactivating tool group: {group}")
-        await ctx.disable_components(tags={tag}, components={"tool"})
+        normalized: list[str] = []
+        for value in requested:
+            if not isinstance(value, str) or not value.strip():
+                return {"error": "Group names must be non-empty strings."}
+            name = value.strip().lower()
+            if name not in normalized:
+                normalized.append(name)
+
+        unknown = [name for name in normalized if name not in TOOL_GROUPS]
+        if unknown:
+            return {
+                "error": f"Unknown group(s): {', '.join(unknown)}. "
+                f"Valid groups: {', '.join(sorted(TOOL_GROUPS))}. No changes were made."
+            }
+
+        desired_enabled = action == "activate"
+        states = await _get_session_group_states(ctx)
+        changed = [name for name in normalized if states.get(name) != desired_enabled]
+        unchanged = [name for name in normalized if name not in changed]
+
+        # One visibility rule for the complete requested set yields one list-change notification.
+        if changed:
+            action_verb = "Activating" if desired_enabled else "Deactivating"
+            await ctx.info(f"{action_verb} tool groups: {', '.join(changed)}")
+            tags = {f"group:{name}" for name in changed}
+            if desired_enabled:
+                await ctx.enable_components(tags=tags, components={"tool"})
+            else:
+                await ctx.disable_components(tags=tags, components={"tool"})
+
+        group_tools = get_group_tool_names()
+        is_single = groups is None and group is not None
+        verb = "activated" if desired_enabled else "deactivated"
+        state_word = "visible" if desired_enabled else "hidden"
+        if is_single:
+            name = normalized[0]
+            message = (
+                f"Group '{name}' is now {state_word}."
+                if name in changed else
+                f"Group '{name}' was already {state_word}; no visibility change was needed."
+            )
+            return {
+                verb: name,
+                "tools": group_tools.get(name, []),
+                "changed": name in changed,
+                "message": message,
+            }
+
+        group_key = "activated_groups" if desired_enabled else "deactivated_groups"
         return {
-            "deactivated": group,
-            "tools": get_group_tool_names().get(group, []),
-            "message": f"Group '{group}' is now hidden.",
+            group_key: normalized,
+            "changed_groups": changed,
+            "unchanged_groups": unchanged,
+            "tools_by_group": {name: group_tools.get(name, []) for name in normalized},
+            "message": (
+                f"{len(changed)} group(s) changed; {len(unchanged)} were already "
+                f"{state_word}. The requested groups are now {state_word}."
+            ),
         }
 
     if action == "sync":
@@ -123,31 +163,34 @@ async def manage_tools(
     return {"error": f"Unknown action '{action}'"}
 
 
-async def _list_groups(ctx: Context) -> dict[str, Any]:
-    """Build the list_groups response with group metadata and tool names."""
-    group_tools = get_group_tool_names()
-
-    # Determine current session-enabled state for each group.
-    # Session rules accumulate; the last rule whose tags include "group:<name>" wins.
+async def _get_session_group_states(ctx: Context) -> dict[str, bool]:
+    """Return effective session group states, falling back to server defaults."""
     session_enabled: dict[str, bool] = {}
     try:
         rules = await ctx._get_visibility_rules()
+        # Rules accumulate; the latest rule mentioning a group wins.
         for rule in rules:
             tags = rule.get("tags") or []
             enabled = rule.get("enabled", True)
             for tag in tags:
                 if isinstance(tag, str) and tag.startswith("group:"):
-                    group_name = tag[len("group:"):]
-                    session_enabled[group_name] = enabled
+                    session_enabled[tag[len("group:"):]] = enabled
     except Exception:
-        pass  # No active session or unsupported – fall back to defaults
+        pass  # No session or visibility state available: use default group state.
+    return {
+        name: session_enabled.get(name, name in DEFAULT_ENABLED_GROUPS)
+        for name in TOOL_GROUPS
+    }
+
+
+async def _list_groups(ctx: Context) -> dict[str, Any]:
+    """Build the list_groups response with group metadata and tool names."""
+    group_tools = get_group_tool_names()
+    session_enabled = await _get_session_group_states(ctx)
 
     groups = []
     for name in sorted(TOOL_GROUPS.keys()):
-        if name in session_enabled:
-            currently_enabled = session_enabled[name]
-        else:
-            currently_enabled = name in DEFAULT_ENABLED_GROUPS
+        currently_enabled = session_enabled[name]
         groups.append({
             "name": name,
             "description": TOOL_GROUPS[name],
@@ -159,7 +202,8 @@ async def _list_groups(ctx: Context) -> dict[str, Any]:
     return {
         "groups": groups,
         "note": (
-            "Use activate/deactivate to toggle groups for this session. "
+            "Plan the task and activate all likely-needed optional groups together with "
+            "manage_tools(action='activate', groups=[...]). Core is already available. "
             "Tools with group=None (server meta-tools) are always visible."
         ),
     }
