@@ -1,0 +1,3 @@
+[submodule "Companions/unity-mcp-efficient"]
+	path = Companions/unity-mcp-efficient
+	url = https://github.com/Vangardo/unity-mcp-efficient.git

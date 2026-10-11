@@ -6,9 +6,9 @@ description: Use the optional Unity MCP Efficient facade with this Unity 6 enhan
 
 # Unity MCP Efficient
 
-[Unity MCP Efficient](https://github.com/Vangardo/unity-mcp-efficient) is an independent MCP facade that exposes a compact six-tool surface and discovers Unity operations on demand. It connects to the Unity MCP **Python HTTP server**; it does not replace the Unity Editor package.
+[Unity MCP Efficient](https://github.com/Vangardo/unity-mcp-efficient) is an independent MCP facade that exposes a compact six-tool surface and discovers Unity operations on demand. Its source is pinned as an optional Git submodule at `Companions/unity-mcp-efficient`, targeting the commit behind release `v0.2.0`. It connects to the Unity MCP **Python HTTP server**; it does not replace the Unity Editor package.
 
-This integration is optional. Clients that connect directly to this fork keep the ordinary Unity MCP tool catalog.
+This integration is optional. Clients that connect directly to this fork keep the ordinary Unity MCP tool catalog. To inspect or modify the companion source, clone with `--recurse-submodules`; the install command below also pins the same commit directly.
 
 ## 1. Install this fork's Unity package
 
@@ -43,7 +43,7 @@ Keep the backend bound to loopback for local use. Do not expose an unauthenticat
 For Codex, use the versioned companion release:
 
 ```powershell
-codex mcp add unity-efficient --env UNITY_MCP_BACKEND_URL=http://127.0.0.1:8080/mcp -- uvx --from git+https://github.com/Vangardo/unity-mcp-efficient.git@v0.2.0 unity-mcp-efficient
+codex mcp add unity-efficient --env UNITY_MCP_BACKEND_URL=http://127.0.0.1:8080/mcp -- uvx --from git+https://github.com/Vangardo/unity-mcp-efficient.git@c70b9a8c08993d4d4a478f7c0f06516464d25ead unity-mcp-efficient
 ```
 
 For clients that accept an MCP server configuration, use this shape:
@@ -74,6 +74,6 @@ The companion project's published compatibility tests target MCP for Unity **v10
 
 After connecting, verify read-only operations first: inspect the Editor state, search for a relevant operation, inspect the active scene, and retrieve the full result for any compact/truncated output. Exercise mutation, batching, screenshots, and modal-dialog recovery only after those basics work in your client.
 
-The companion README reports substantial context reductions for its own benchmark fixtures; those are measurements against v10.1.0, not guarantees for every model, scene, or payload. See the [upstream README](https://github.com/Vangardo/unity-mcp-efficient#measured-context-reduction) and [benchmark methodology](https://github.com/Vangardo/unity-mcp-efficient/blob/v0.2.0/BENCHMARKS.md).
+The companion README reports substantial context reductions for its own benchmark fixtures; those are measurements against v10.1.0, not guarantees for every model, scene, or payload. See the [upstream README](https://github.com/Vangardo/unity-mcp-efficient#measured-context-reduction) and [benchmark methodology](https://github.com/Vangardo/unity-mcp-efficient/blob/c70b9a8c08993d4d4a478f7c0f06516464d25ead/BENCHMARKS.md).
 
-The facade is a third-party project and is not vendored into this repository. Review its [security notes](https://github.com/Vangardo/unity-mcp-efficient/blob/v0.2.0/SECURITY.md) before exposing its HTTP or SSE transport.
+The third-party release tag `v0.2.0` is unsigned; the submodule and install examples pin its target commit rather than a floating branch. Review its [security notes](https://github.com/Vangardo/unity-mcp-efficient/blob/c70b9a8c08993d4d4a478f7c0f06516464d25ead/SECURITY.md) before exposing its HTTP or SSE transport.
