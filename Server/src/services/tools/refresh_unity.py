@@ -35,8 +35,14 @@ def _in_pytest() -> bool:
     return "PYTEST_CURRENT_TEST" in os.environ
 
 
-async def _probe_blocking_modal(ctx: Context) -> dict[str, Any] | None:
-    """Probe liveness off the main-thread command queue while Editor readiness is stalled."""
+async def _probe_blocking_modal(
+    ctx: Context, *, require_detection: bool = False
+) -> dict[str, Any] | None:
+    """Probe liveness off the main-thread queue while readiness is stalled.
+
+    If readiness would otherwise be accepted only because no known blocker was reported,
+    unsupported modal detection cannot safely provide the missing evidence.
+    """
     try:
         unity_instance = await get_unity_instance_from_context(ctx)
         response = await unity_transport.send_with_unity_instance(
@@ -62,6 +68,20 @@ async def _probe_blocking_modal(ctx: Context) -> dict[str, Any] | None:
         return None
 
     modal = data.get("modal") if isinstance(data.get("modal"), dict) else {}
+    if not modal.get("supported") and require_detection:
+        return MCPResponse(
+            success=False,
+            error=(
+                "The Editor state is not ready and this platform cannot identify modal dialogs. "
+                "Inspect the Unity Editor manually before retrying."
+            ),
+            hint="user_action_required",
+            data={
+                "reason": "modal_detection_unsupported",
+                "main_thread_stall_ms": data.get("main_thread_stall_ms"),
+            },
+        ).model_dump()
+
     sample_age_ms = data.get("sample_age_ms")
     if (
         modal.get("supported")
@@ -155,7 +175,7 @@ async def wait_for_editor_ready(
         now = time.monotonic()
         if should_probe_liveness and now - last_liveness_probe >= 1.0:
             last_liveness_probe = now
-            blocked = await _probe_blocking_modal(ctx)
+            blocked = await _probe_blocking_modal(ctx, require_detection=ready_if_no_modal)
             if blocked is not None:
                 return (False, time.monotonic() - start, blocked)
             if ready_if_no_modal:

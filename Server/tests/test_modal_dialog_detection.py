@@ -266,6 +266,39 @@ async def test_wait_for_editor_ready_checks_liveness_before_unknown_blocker_is_c
 
 
 @pytest.mark.asyncio
+async def test_wait_for_editor_ready_does_not_assume_ready_when_modal_detection_is_unsupported(monkeypatch):
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    from services.tools import refresh_unity as mod
+
+    async def fake_get_editor_state(ctx):
+        return {
+            "data": {
+                "advice": {
+                    "ready_for_tools": False,
+                    "blocking_reasons": ["future_status_reason"],
+                }
+            }
+        }
+
+    async def fake_send(send_fn, unity_instance, command, params, **kwargs):
+        return {
+            "success": True,
+            "data": _liveness(blocked=False, supported=False, sample_age_ms=9000),
+        }
+
+    monkeypatch.setattr(mod.editor_state, "get_editor_state", fake_get_editor_state)
+    monkeypatch.setattr(mod.unity_transport, "send_with_unity_instance", fake_send)
+    monkeypatch.setattr(mod, "get_unity_instance_from_context", _async_none)
+
+    ready, _, blocked = await mod.wait_for_editor_ready(_Ctx(), timeout_s=5.0)
+
+    assert ready is False
+    assert blocked["hint"] == "user_action_required"
+    assert blocked["data"]["reason"] == "modal_detection_unsupported"
+
+
+@pytest.mark.asyncio
 async def test_wait_for_editor_ready_accepts_unknown_nonblocking_state_after_liveness(monkeypatch):
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
 
