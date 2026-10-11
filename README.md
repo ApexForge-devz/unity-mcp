@@ -75,7 +75,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Branch off `beta`, not `main`. The full 
 - **Tool groups (vfx / animation / ui / testing / etc.)** — [Tool Groups](https://coplaydev.github.io/unity-mcp/guides/tool-groups)
 - **v10 asset generation and upgrade notes** — [v10 Migration](https://coplaydev.github.io/unity-mcp/migrations/v10)
 - **Roslyn script validation** — [Roslyn Validation](https://coplaydev.github.io/unity-mcp/guides/roslyn)
-- **Token-efficient MCP facade** — [Unity MCP Efficient integration](website/docs/guides/unity-mcp-efficient.md); source pinned under `Companions/unity-mcp-efficient` at v0.2.0.
 - **Remote-hosted server with auth** — [Remote Server Auth](https://coplaydev.github.io/unity-mcp/guides/remote-server-auth)
 
 ## Star History

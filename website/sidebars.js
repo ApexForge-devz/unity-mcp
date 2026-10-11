@@ -28,7 +28,6 @@ const sidebars = {
         'guides/client-configurators',
         'guides/multi-instance',
         'guides/editor-window-screenshots',
-        'guides/unity-mcp-efficient',
         'guides/tool-groups',
         'guides/cli',
         'guides/cli-examples',
