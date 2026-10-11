@@ -650,6 +650,13 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                             // broker gave up waiting, reconnected and resent it. Running it a
                             // second time would duplicate side effects (issue #1130), so attach
                             // to the original instead of queueing a copy.
+                            // Answered on this socket thread, never the main-thread queue.
+                            if (OffMainThreadCommands.TryHandleRaw(commandText, out string offMainThreadResponse))
+                            {
+                                await WriteFrameAsync(stream, System.Text.Encoding.UTF8.GetBytes(offMainThreadResponse));
+                                continue;
+                            }
+
                             TaskCompletionSource<string> pending = tcs;
                             lock (lockObj)
                             {
