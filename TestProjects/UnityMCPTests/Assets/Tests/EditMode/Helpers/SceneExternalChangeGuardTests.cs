@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using Newtonsoft.Json;
+using NUnit.Framework;
+using UnityEditor;
+
+namespace MCPForUnityTests.Editor
+{
+    /// <summary>
+    /// Protects per-scene change baselines from unrelated scene-open/save events.
+    /// </summary>
+    public class SceneExternalChangeGuardTests
+    {
+        private string _tempDirectory;
+        private string _baselineKey;
+        private string _previousBaseline;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _tempDirectory = Path.Combine(Path.GetTempPath(), "McpSceneGuard_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(_tempDirectory);
+
+            var field = typeof(MCPForUnity.Editor.Helpers.SceneExternalChangeGuard).GetField(
+                "BaselineKey", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(field);
+            _baselineKey = (string)field.GetValue(null);
+            _previousBaseline = SessionState.GetString(_baselineKey, string.Empty);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            SessionState.SetString(_baselineKey, _previousBaseline ?? string.Empty);
+            if (Directory.Exists(_tempDirectory))
+                Directory.Delete(_tempDirectory, true);
+        }
+
+        [Test]
+        public void UpdatingOneSceneBaselinePreservesAnUnreconciledSceneBaseline()
+        {
+            string changedScenePath = Path.Combine(_tempDirectory, "SceneA.unity");
+            string openedScenePath = Path.Combine(_tempDirectory, "SceneB.unity");
+            File.WriteAllText(changedScenePath, "external edit");
+            File.WriteAllText(openedScenePath, "new scene");
+
+            long originalBaseline = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc).Ticks;
+            SessionState.SetString(
+                _baselineKey,
+                JsonConvert.SerializeObject(new Dictionary<string, long>
+                {
+                    [changedScenePath] = originalBaseline
+                }));
+
+            var upsert = typeof(MCPForUnity.Editor.Helpers.SceneExternalChangeGuard).GetMethod(
+                "UpsertBaseline", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(upsert);
+            upsert.Invoke(null, new object[] { openedScenePath });
+
+            var baselines = JsonConvert.DeserializeObject<Dictionary<string, long>>(
+                SessionState.GetString(_baselineKey, string.Empty));
+
+            Assert.IsNotNull(baselines);
+            Assert.AreEqual(
+                originalBaseline,
+                baselines[changedScenePath],
+                "Opening or saving Scene B must not reset Scene A's externally changed timestamp.");
+            Assert.AreEqual(File.GetLastWriteTimeUtc(openedScenePath).Ticks, baselines[openedScenePath]);
+        }
+    }
+}
