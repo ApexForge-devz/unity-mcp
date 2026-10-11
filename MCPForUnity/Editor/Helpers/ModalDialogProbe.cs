@@ -282,7 +282,12 @@ namespace MCPForUnity.Editor.Helpers
                     continue;
                 }
 
-                PostMessageW(child, BM_CLICK, IntPtr.Zero, IntPtr.Zero);
+                if (!PostMessageW(child, BM_CLICK, IntPtr.Zero, IntPtr.Zero))
+                {
+                    error = $"Windows rejected the click request for button '{buttonLabel}' on dialog '{observed.Title}'.";
+                    return false;
+                }
+
                 return true;
             }
 
