@@ -396,8 +396,15 @@ class PluginHub(WebSocketEndpoint):
         if not isinstance(data, dict):
             return None
         sample_age_ms = data.get("sample_age_ms")
-        if isinstance(sample_age_ms, (int, float)) and sample_age_ms > cls.MAX_LIVENESS_SAMPLE_AGE_MS:
-            # A dead sampler must not turn an old "no modal" snapshot into a confident all-clear.
+        modal = data.get("modal") if isinstance(data.get("modal"), dict) else {}
+        # A sampler exists only on supported platforms. An unsupported platform has no window
+        # snapshot to refresh, but the heartbeat/queue fields are still current and useful for
+        # distinguishing a busy main thread from an ordinary timeout.
+        if (
+            modal.get("supported")
+            and isinstance(sample_age_ms, (int, float))
+            and sample_age_ms > cls.MAX_LIVENESS_SAMPLE_AGE_MS
+        ):
             return None
         return data
 

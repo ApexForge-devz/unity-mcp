@@ -617,12 +617,39 @@ def dialog(answer: Optional[str], expect_title: Optional[str]):
     if answer is None:
         result = unwrap(run_command("liveness", {}, config))
         click.echo(format_output(result, config.format))
+
+        if result.get("success") is False:
+            print_error(result.get("error") or "Failed to query Unity liveness.")
+            sys.exit(1)
+
         data = result.get("data")
-        modal = (data or {}).get("modal") if isinstance(data, dict) else None
-        if not isinstance(modal, dict) or not modal.get("blocked"):
-            print_info("No modal dialog is open.")
+        modal = data.get("modal") if isinstance(data, dict) else None
+        if not isinstance(modal, dict) or "blocked" not in modal:
+            print_error("Unity did not return modal-detection state; cannot confirm that no dialog is open.")
+            sys.exit(1)
+
+        sample_age_ms = data.get("sample_age_ms")
+        if (modal.get("supported")
+                and isinstance(sample_age_ms, (int, float))
+                and sample_age_ms > 5000):
+            print_error(f"Unity's modal liveness snapshot is stale ({sample_age_ms} ms); retry.")
+            sys.exit(1)
+
+        if not modal.get("supported"):
+            stall_ms = data.get("main_thread_stall_ms")
+            print_info(
+                "Modal-dialog identification is unavailable on this platform. "
+                "Inspect the Unity Editor manually if commands are stalled."
+            )
+            if stall_ms is not None:
+                print_info(f"Main-thread stall: {stall_ms} ms")
             return
-        print_info(f"Dialog: {modal.get('title')}")
+
+        if not modal.get("blocked"):
+            print_info("No modal dialog is currently open in the Unity Editor.")
+            return
+
+        print_info(f"Dialog: {modal.get('title') or '(untitled dialog)'}")
         if modal.get("body"):
             print_info(f"  {modal.get('body')}")
         print_info(f"  Buttons: {', '.join(modal.get('buttons') or [])}")

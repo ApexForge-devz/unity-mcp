@@ -149,6 +149,20 @@ async def test_liveness_probe_rejects_stale_sampler_snapshot(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_liveness_probe_keeps_heartbeat_when_modal_sampling_is_unsupported(monkeypatch):
+    async def fake_send(cls, session_id, command_type, params):
+        return {"success": True, "data": _liveness(blocked=False, stall_ms=9000, supported=False, sample_age_ms=9001)}
+
+    monkeypatch.setattr(PluginHub, "send_command", classmethod(fake_send))
+    live = await PluginHub.probe_liveness("sess")
+    assert live is not None
+    assert live["sample_age_ms"] == 9001
+    result = await PluginHub.describe_stall("sess", "manage_asset")
+    assert result["hint"] == "wait"
+    assert result["data"]["reason"] == "main_thread_blocked"
+
+
+@pytest.mark.asyncio
 async def test_liveness_probe_does_not_classify_itself(monkeypatch):
     """Classifying the probe's own timeout would recurse until the stack ran out."""
     calls = []
@@ -215,6 +229,78 @@ async def test_wait_for_editor_ready_abandons_polling_on_a_modal(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_wait_for_editor_ready_checks_liveness_before_unknown_blocker_is_called_ready(monkeypatch):
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    from services.tools import refresh_unity as mod
+
+    async def fake_get_editor_state(ctx):
+        return {
+            "data": {
+                "advice": {
+                    "ready_for_tools": False,
+                    "blocking_reasons": ["future_status_reason"],
+                }
+            }
+        }
+
+    async def fake_send(send_fn, unity_instance, command, params, **kwargs):
+        assert command == "liveness"
+        return {
+            "success": True,
+            "data": _liveness(
+                blocked=True, stall_ms=5000, title="Import Settings",
+                buttons=["Apply", "Cancel"], supported=True, answerable=True,
+            ),
+        }
+
+    monkeypatch.setattr(mod.editor_state, "get_editor_state", fake_get_editor_state)
+    monkeypatch.setattr(mod.unity_transport, "send_with_unity_instance", fake_send)
+    monkeypatch.setattr(mod, "get_unity_instance_from_context", _async_none)
+
+    ready, _, blocked = await mod.wait_for_editor_ready(_Ctx(), timeout_s=5.0)
+
+    assert ready is False
+    assert blocked["data"]["reason"] == "modal_dialog"
+    assert blocked["hint"] == "answer_dialog"
+
+
+@pytest.mark.asyncio
+async def test_wait_for_editor_ready_accepts_unknown_nonblocking_state_after_liveness(monkeypatch):
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    from services.tools import refresh_unity as mod
+
+    polls = 0
+
+    async def fake_get_editor_state(ctx):
+        nonlocal polls
+        polls += 1
+        return {
+            "data": {
+                "advice": {
+                    "ready_for_tools": False,
+                    "blocking_reasons": ["future_status_reason"],
+                }
+            }
+        }
+
+    async def fake_send(send_fn, unity_instance, command, params, **kwargs):
+        assert command == "liveness"
+        return {"success": True, "data": _liveness(blocked=False, stall_ms=50)}
+
+    monkeypatch.setattr(mod.editor_state, "get_editor_state", fake_get_editor_state)
+    monkeypatch.setattr(mod.unity_transport, "send_with_unity_instance", fake_send)
+    monkeypatch.setattr(mod, "get_unity_instance_from_context", _async_none)
+
+    ready, _, blocked = await mod.wait_for_editor_ready(_Ctx(), timeout_s=5.0)
+
+    assert ready is True
+    assert blocked is None
+    assert polls == 1
+
+
+@pytest.mark.asyncio
 async def test_wait_for_editor_ready_keeps_waiting_through_a_busy_main_thread(monkeypatch):
     """A long operation clears on its own, so this one must not give up early."""
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
@@ -272,6 +358,23 @@ async def test_read_path_reports_answerable_not_platform_support(monkeypatch):
     assert data["data"]["dialog"]["answerable"] is False
     assert data["data"]["dialog"]["title"] == "Migration Step 2"
 
+
+
+@pytest.mark.asyncio
+async def test_read_path_does_not_claim_no_dialog_when_platform_is_unsupported(monkeypatch):
+    from services.tools import answer_dialog as mod
+
+    async def fake_send(send_fn, unity_instance, command, params, **kwargs):
+        return {"success": True, "data": _liveness(blocked=False, supported=False, sample_age_ms=9001)}
+
+    monkeypatch.setattr(mod.unity_transport, "send_with_unity_instance", fake_send)
+    monkeypatch.setattr(mod, "get_unity_instance_from_context", _async_none)
+    resp = await mod.answer_dialog(_Ctx())
+    data = resp.model_dump() if hasattr(resp, "model_dump") else resp
+    assert data["success"] is True
+    assert data["data"]["blocked"] is None
+    assert data["data"]["supported"] is False
+    assert "not supported" in data["message"]
 
 
 @pytest.mark.asyncio

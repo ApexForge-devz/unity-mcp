@@ -61,8 +61,13 @@ async def _probe_blocking_modal(ctx: Context) -> dict[str, Any] | None:
     if response.get("success") is not True:
         return None
 
+    modal = data.get("modal") if isinstance(data.get("modal"), dict) else {}
     sample_age_ms = data.get("sample_age_ms")
-    if isinstance(sample_age_ms, (int, float)) and sample_age_ms > 5000:
+    if (
+        modal.get("supported")
+        and isinstance(sample_age_ms, (int, float))
+        and sample_age_ms > 5000
+    ):
         return MCPResponse(
             success=False,
             error=(
@@ -73,7 +78,6 @@ async def _probe_blocking_modal(ctx: Context) -> dict[str, Any] | None:
             data={"reason": "liveness_probe_stale", "sample_age_ms": sample_age_ms},
         ).model_dump()
 
-    modal = data.get("modal") if isinstance(data.get("modal"), dict) else {}
     if not modal.get("blocked"):
         return None
 
@@ -108,27 +112,24 @@ async def _probe_blocking_modal(ctx: Context) -> dict[str, Any] | None:
 async def wait_for_editor_ready(
     ctx: Context, timeout_s: float = 30.0
 ) -> tuple[bool, float, dict[str, Any] | None]:
-    """Poll editor_state until Unity is ready for tool calls.
+    """Poll Editor readiness, checking the independent liveness channel before declaring ready.
 
-    Returns (ready, elapsed_seconds, blocked_response). Treats exceptions from
-    get_editor_state as "not ready yet" so the loop survives transient
-    connection errors during domain reload.
-
-    ``blocked_response`` is set when polling was abandoned because Unity reported a state that
-    will not clear on its own — a modal dialog waits for an answer, so continuing to poll would
-    burn the whole timeout and then report a generic failure instead of the actionable one.
+    Returns (ready, elapsed_seconds, blocked_response). A modal needs an answer, not repeated
+    retries; ordinary compilation/import work can clear by itself and should continue to be polled.
     """
     if _in_pytest():
         return (True, 0.0, None)
 
     start = time.monotonic()
-    last_liveness_probe = 0.0
+    last_liveness_probe = start - 1.0
     while time.monotonic() - start < timeout_s:
+        should_probe_liveness = False
+        ready_if_no_modal = False
+
         try:
             state_resp = await editor_state.get_editor_state(ctx)
             state = state_resp.model_dump() if hasattr(state_resp, "model_dump") else state_resp
 
-            should_probe_liveness = False
             if isinstance(state, dict) and state.get("success") is False:
                 reason = (state.get("data") or {}).get("reason")
                 if reason in _WAITING_WONT_HELP_REASONS:
@@ -140,21 +141,26 @@ async def wait_for_editor_ready(
             if isinstance(advice, dict):
                 if advice.get("ready_for_tools") is True:
                     return (True, time.monotonic() - start, None)
-                blocking = set(advice.get("blocking_reasons") or [])
-                if not (blocking & _REAL_BLOCKING_REASONS):
-                    return (True, time.monotonic() - start, None)
-                should_probe_liveness = True
-        except Exception:
-            should_probe_liveness = True  # connection errors may be a consequence of a blocked Editor
 
-        # get_editor_state cannot always include the result of a timed-out command. Probe the
-        # receive-thread liveness path independently, but not on every 250 ms polling iteration.
+                blocking = set(advice.get("blocking_reasons") or [])
+                should_probe_liveness = True
+                # Preserve the prior behavior for unknown, non-blocking status reasons, but only
+                # after checking the independent transport path for a modal that the state tool
+                # itself cannot query while the main thread is stalled.
+                ready_if_no_modal = not bool(blocking & _REAL_BLOCKING_REASONS)
+        except Exception:
+            # Connection errors can be a consequence of the main thread no longer pumping.
+            should_probe_liveness = True
+
         now = time.monotonic()
         if should_probe_liveness and now - last_liveness_probe >= 1.0:
             last_liveness_probe = now
             blocked = await _probe_blocking_modal(ctx)
             if blocked is not None:
                 return (False, time.monotonic() - start, blocked)
+            if ready_if_no_modal:
+                return (True, time.monotonic() - start, None)
+
         await asyncio.sleep(0.25)
 
     return (False, time.monotonic() - start, None)

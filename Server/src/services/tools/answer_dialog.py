@@ -66,11 +66,33 @@ async def answer_dialog(
 
         modal = (data or {}).get("modal") if isinstance(data, dict) else None
 
-        if not isinstance(modal, dict) or not modal.get("blocked"):
+        if not isinstance(modal, dict) or "blocked" not in modal:
+            return MCPResponse(
+                success=False,
+                error="Unity did not return modal-detection state; refusing to report that no dialog is open.",
+                hint="retry",
+                data={"reason": "liveness_payload_missing"},
+            )
+
+        if not modal.get("supported"):
+            return MCPResponse(
+                success=True,
+                message=(
+                    "Modal-dialog identification is not supported on this platform. "
+                    "The liveness heartbeat is available; inspect the Unity Editor manually if commands are stalled."
+                ),
+                data={
+                    "blocked": None,
+                    "supported": False,
+                    "main_thread_stall_ms": data.get("main_thread_stall_ms"),
+                },
+            )
+
+        if not modal.get("blocked"):
             return MCPResponse(
                 success=True,
                 message="No modal dialog is currently open in the Unity Editor.",
-                data={"blocked": False},
+                data={"blocked": False, "supported": True},
             )
 
         return MCPResponse(
