@@ -645,16 +645,19 @@ namespace MCPForUnity.Editor.Tools
             if (!string.IsNullOrEmpty(filterType))
                 searchFilters.Add($"t:{filterType}");
 
-            string[] folderScope = null;
-            if (!string.IsNullOrEmpty(pathScope))
+            if (string.IsNullOrWhiteSpace(pathScope))
             {
-                folderScope = new string[] { AssetPathUtility.SanitizeAssetPath(pathScope) };
-                if (string.IsNullOrEmpty(folderScope[0]) || !AssetDatabase.IsValidFolder(folderScope[0]))
-                {
-                    return new ErrorResponse(
-                        $"Search path '{folderScope[0]}' is not a valid folder. Use an existing folder such as 'Assets' for path, and put asset names or queries in searchPattern (search_pattern in MCP)."
-                    );
-                }
+                return new ErrorResponse(
+                    "Search requires path to name an existing folder (for example 'Assets'). Put asset names or queries in searchPattern (search_pattern in MCP), not in path."
+                );
+            }
+
+            string[] folderScope = new string[] { AssetPathUtility.SanitizeAssetPath(pathScope) };
+            if (string.IsNullOrEmpty(folderScope[0]) || !AssetDatabase.IsValidFolder(folderScope[0]))
+            {
+                return new ErrorResponse(
+                    $"Search path '{folderScope[0]}' is not a valid folder. Use an existing folder such as 'Assets' for path, and put asset names or queries in searchPattern (search_pattern in MCP)."
+                );
             }
 
             DateTime? filterDateAfter = null;

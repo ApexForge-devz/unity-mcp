@@ -93,6 +93,29 @@ namespace MCPForUnityTests.Editor
             Assert.AreEqual(0, _assetPaths.Count(AssetDatabase.IsMainAssetAtPathLoaded));
         }
 
+        [TestCase("")]
+        [TestCase("   ")]
+        public void Search_BlankScopeReturnsErrorWithoutSearchingProject(string path)
+        {
+            var parameters = SearchParams(2, 1);
+            parameters["path"] = path;
+            var response = ManageAsset.HandleCommand(parameters);
+            Assert.IsInstanceOf<ErrorResponse>(response);
+            StringAssert.Contains("existing folder", ((ErrorResponse)response).Error);
+            Assert.AreEqual(0, _assetPaths.Count(AssetDatabase.IsMainAssetAtPathLoaded));
+        }
+
+        [Test]
+        public void Search_MissingScopeReturnsErrorWithoutSearchingProject()
+        {
+            var parameters = SearchParams(2, 1);
+            parameters.Remove("path");
+            var response = ManageAsset.HandleCommand(parameters);
+            Assert.IsInstanceOf<ErrorResponse>(response);
+            StringAssert.Contains("existing folder", ((ErrorResponse)response).Error);
+            Assert.AreEqual(0, _assetPaths.Count(AssetDatabase.IsMainAssetAtPathLoaded));
+        }
+
         [Test]
         public void Search_InvalidScopeDoesNotExpandToTheEntireProject()
         {
