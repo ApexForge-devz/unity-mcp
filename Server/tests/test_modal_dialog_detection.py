@@ -168,7 +168,9 @@ async def test_liveness_probe_does_not_classify_itself(monkeypatch):
 async def test_off_main_thread_commands_get_a_short_timeout():
     """They are answered on the receive thread; waiting the full command timeout is pointless."""
     assert PluginHub._OFF_MAIN_THREAD_COMMANDS == {"liveness", "answer_dialog"}
-    assert PluginHub.LIVENESS_TIMEOUT < PluginHub.COMMAND_TIMEOUT
+    assert PluginHub.LIVENESS_TIMEOUT < PluginHub.ANSWER_DIALOG_TIMEOUT
+    assert PluginHub.ANSWER_DIALOG_TIMEOUT < PluginHub.COMMAND_TIMEOUT
+    assert PluginHub.MAX_LIVENESS_SAMPLE_AGE_MS >= PluginHub.LIVENESS_TIMEOUT * 1000
 
 
 @pytest.mark.asyncio
