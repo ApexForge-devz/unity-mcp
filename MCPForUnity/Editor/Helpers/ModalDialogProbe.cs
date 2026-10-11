@@ -80,8 +80,13 @@ namespace MCPForUnity.Editor.Helpers
         [DllImport("user32.dll")]
         private static extern bool PostMessageW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
-        internal static bool IsSupported =>
+        // This type is first touched by EditorLivenessProbe's [InitializeOnLoad] constructor
+        // on the Editor thread. Cache the Unity platform query there so the background sampler never
+        // needs to call a UnityEngine API while inspecting native windows.
+        private static readonly bool PlatformSupported =
             Application.platform == RuntimePlatform.WindowsEditor;
+
+        internal static bool IsSupported => PlatformSupported;
 
         /// <summary>
         /// Look for a modal dialog owned by this process. Safe to call from a background thread.
