@@ -58,6 +58,13 @@ namespace MCPForUnity.Editor.Helpers
         {
             var outcome = new Outcome();
             mode = string.IsNullOrWhiteSpace(mode) ? ModeAuto : mode.Trim().ToLowerInvariant();
+            if (mode != ModeAuto && mode != ModeReload && mode != ModeKeepEditor)
+            {
+                outcome.Blocked = true;
+                outcome.Error =
+                    $"Unsupported on_external_scene_change mode '{mode}'. Expected '{ModeAuto}', '{ModeReload}', or '{ModeKeepEditor}'.";
+                return outcome;
+            }
 
             var baseline = LoadBaseline();
             var openScenes = OpenScenes();

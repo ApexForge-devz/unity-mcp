@@ -38,6 +38,18 @@ namespace MCPForUnityTests.Editor
                 Directory.Delete(_tempDirectory, true);
         }
 
+        [TestCase("invalid")]
+        [TestCase("discard_everything")]
+        public void Reconcile_UnknownModeFailsClosed(string mode)
+        {
+            var outcome = MCPForUnity.Editor.Helpers.SceneExternalChangeGuard.Reconcile(mode);
+            Assert.IsTrue(outcome.Blocked);
+            StringAssert.Contains("Unsupported on_external_scene_change mode", outcome.Error);
+            StringAssert.Contains("auto", outcome.Error);
+            StringAssert.Contains("reload", outcome.Error);
+            StringAssert.Contains("keep_editor", outcome.Error);
+        }
+
         [Test]
         public void UpdatingOneSceneBaselinePreservesAnUnreconciledSceneBaseline()
         {
