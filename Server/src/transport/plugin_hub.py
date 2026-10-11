@@ -139,6 +139,7 @@ class PluginHub(WebSocketEndpoint):
     LIVENESS_TIMEOUT = 2.0
     ANSWER_DIALOG_TIMEOUT = 10.0
     MAIN_THREAD_STALL_THRESHOLD_MS = 1500
+    MAX_LIVENESS_SAMPLE_AGE_MS = 5000
 
     _registry: PluginRegistry | None = None
     _mcp: FastMCP | None = None
@@ -392,7 +393,13 @@ class PluginHub(WebSocketEndpoint):
         if not isinstance(result, dict) or not result.get("success"):
             return None
         data = result.get("data")
-        return data if isinstance(data, dict) else None
+        if not isinstance(data, dict):
+            return None
+        sample_age_ms = data.get("sample_age_ms")
+        if isinstance(sample_age_ms, (int, float)) and sample_age_ms > cls.MAX_LIVENESS_SAMPLE_AGE_MS:
+            # A dead sampler must not turn an old "no modal" snapshot into a confident all-clear.
+            return None
+        return data
 
     @classmethod
     async def describe_stall(cls, session_id: str, command_type: str) -> dict[str, Any] | None:
@@ -409,7 +416,9 @@ class PluginHub(WebSocketEndpoint):
             title = modal.get("title") or "(untitled dialog)"
             body = modal.get("body")
             buttons = modal.get("buttons") or []
-            answerable = bool(modal.get("answerable"))
+            # "supported" describes platform capability; "answerable" describes this specific modal.
+            supported = bool(modal.get("supported"))
+            answerable = supported and bool(modal.get("answerable"))
             kind = modal.get("kind")
             what = "modal window" if kind == "editor_window" else "dialog"
             detail = f"Unity Editor is blocked by {what} {title!r}"

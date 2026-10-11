@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
@@ -49,6 +50,8 @@ namespace MCPForUnity.Editor.Helpers
         private const uint BM_CLICK = 0x00F5;
         private const uint SMTO_ABORTIFHUNG = 0x0002;
         private const int TextReadTimeoutMs = 400;
+        internal const int MaxCaptureDurationMs = 2500;
+        private const int MaxAnswerScanDurationMs = 2500;
         private const int MaxTopLevelScan = 5000;
         private const int MaxChildScan = 200;
 
@@ -91,6 +94,7 @@ namespace MCPForUnity.Editor.Helpers
                 return info;
             }
 
+            var captureClock = Stopwatch.StartNew();
             try
             {
                 uint myPid = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
@@ -104,6 +108,14 @@ namespace MCPForUnity.Editor.Helpers
                 IntPtr window = IntPtr.Zero;
                 for (int i = 0; i < MaxTopLevelScan; i++)
                 {
+                    if (captureClock.ElapsedMilliseconds >= MaxCaptureDurationMs)
+                    {
+                        // Do not claim "no modal" when a pathological desktop/window scan exceeded
+                        // the budget. Mark the probe unsupported for this sample so callers fail safe.
+                        info.Supported = false;
+                        return info;
+                    }
+
                     window = FindWindowExW(IntPtr.Zero, window, IntPtr.Zero, IntPtr.Zero);
                     if (window == IntPtr.Zero)
                     {
@@ -136,6 +148,11 @@ namespace MCPForUnity.Editor.Helpers
                 IntPtr modal = IntPtr.Zero;
                 foreach (var candidate in enabled)
                 {
+                    if (captureClock.ElapsedMilliseconds >= MaxCaptureDurationMs)
+                    {
+                        info.Supported = false;
+                        return info;
+                    }
                     if (string.Equals(ClassOf(candidate), DialogWindowClass, StringComparison.Ordinal))
                     {
                         modal = candidate;
@@ -166,6 +183,14 @@ namespace MCPForUnity.Editor.Helpers
                 var bodyParts = new List<string>();
                 foreach (var child in ChildrenOf(modal))
                 {
+                    if (captureClock.ElapsedMilliseconds >= MaxCaptureDurationMs)
+                    {
+                        // We did detect a native modal, but cannot safely guarantee all labels were
+                        // read inside the budget. Report it as not answerable rather than guess.
+                        info.Answerable = false;
+                        return info;
+                    }
+
                     string cls = ClassOf(child);
                     string text = TextOf(child);
                     if (string.IsNullOrEmpty(text))
@@ -188,6 +213,8 @@ namespace MCPForUnity.Editor.Helpers
             }
             catch (Exception ex)
             {
+                // A failed sample must not become a confident no-modal report.
+                info.Supported = false;
                 McpLog.Warn($"Modal dialog probe failed: {ex.Message}");
             }
 
@@ -229,6 +256,7 @@ namespace MCPForUnity.Editor.Helpers
                 return false;
             }
 
+            var answerClock = Stopwatch.StartNew();
             var handle = new IntPtr(observed.Handle);
             if (!IsWindow(handle))
             {
@@ -238,6 +266,12 @@ namespace MCPForUnity.Editor.Helpers
 
             foreach (var child in ChildrenOf(handle))
             {
+                if (answerClock.ElapsedMilliseconds >= MaxAnswerScanDurationMs)
+                {
+                    error = $"Timed out while looking for button '{buttonLabel}' on dialog '{observed.Title}'.";
+                    return false;
+                }
+
                 if (!string.Equals(ClassOf(child), ButtonWindowClass, StringComparison.Ordinal))
                 {
                     continue;

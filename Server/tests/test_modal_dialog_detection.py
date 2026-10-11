@@ -25,7 +25,7 @@ class _Ctx:
 
 
 def _liveness(*, blocked=False, stall_ms=0, title=None, body=None, buttons=None, supported=True,
-              kind="dialog", answerable=None):
+              kind="dialog", answerable=None, sample_age_ms=120):
     modal = {"supported": supported, "blocked": blocked}
     if blocked:
         if answerable is None:
@@ -41,7 +41,7 @@ def _liveness(*, blocked=False, stall_ms=0, title=None, body=None, buttons=None,
         "main_thread_stall_ms": stall_ms,
         "main_thread_ticks": 42,
         "pending_commands": 1,
-        "sample_age_ms": 120,
+        "sample_age_ms": sample_age_ms,
         "modal": modal,
     }
 
@@ -101,7 +101,8 @@ async def test_unity_drawn_modal_window_is_reported_but_not_answerable(probe):
 @pytest.mark.asyncio
 async def test_modal_on_unsupported_platform_asks_for_a_human(probe):
     probe["payload"] = _liveness(
-        blocked=True, stall_ms=9000, title="Save Scene", buttons=[], supported=False)
+        blocked=True, stall_ms=9000, title="Save Scene", buttons=["Reload"],
+        supported=False, answerable=True)
 
     result = await PluginHub.describe_stall("sess", "read_console")
 
@@ -136,6 +137,17 @@ async def test_plugin_that_cannot_answer_falls_back_to_retry(probe):
     assert await PluginHub.describe_stall("sess", "read_console") is None
 
 
+
+@pytest.mark.asyncio
+async def test_liveness_probe_rejects_stale_sampler_snapshot(monkeypatch):
+    async def fake_send(cls, session_id, command_type, params):
+        return {"success": True, "data": _liveness(blocked=False, sample_age_ms=6001)}
+
+    monkeypatch.setattr(PluginHub, "send_command", classmethod(fake_send))
+
+    assert await PluginHub.probe_liveness("sess") is None
+
+
 @pytest.mark.asyncio
 async def test_liveness_probe_does_not_classify_itself(monkeypatch):
     """Classifying the probe's own timeout would recurse until the stack ran out."""
@@ -161,32 +173,42 @@ async def test_off_main_thread_commands_get_a_short_timeout():
 
 @pytest.mark.asyncio
 async def test_wait_for_editor_ready_abandons_polling_on_a_modal(monkeypatch):
-    """Polling a dialog for the full timeout delays an answer the caller could already act on."""
+    """Use the independent liveness path because editor_state cannot always expose modal errors."""
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
 
     from services.tools import refresh_unity as mod
-
-    blocked_response = {
-        "success": False,
-        "error": "Unity's main thread is blocked by a modal dialog: 'Save Scene'",
-        "hint": "answer_dialog",
-        "data": {"reason": "modal_dialog", "dialog": {"buttons": ["Save", "Don't Save"]}},
-    }
 
     polls = 0
 
     async def fake_get_editor_state(ctx):
         nonlocal polls
         polls += 1
-        return blocked_response
+        return {
+            "success": False,
+            "hint": "wait",
+            "data": {"reason": "main_thread_blocked"},
+        }
+
+    async def fake_send(send_fn, unity_instance, command, params, **kwargs):
+        assert command == "liveness"
+        return {
+            "success": True,
+            "data": _liveness(
+                blocked=True, stall_ms=5000, title="Save Scene",
+                buttons=["Save", "Don't Save"], supported=True, answerable=True,
+            ),
+        }
 
     monkeypatch.setattr(mod.editor_state, "get_editor_state", fake_get_editor_state)
+    monkeypatch.setattr(mod.unity_transport, "send_with_unity_instance", fake_send)
+    monkeypatch.setattr(mod, "get_unity_instance_from_context", _async_none)
 
     ready, elapsed, blocked = await mod.wait_for_editor_ready(_Ctx(), timeout_s=10.0)
 
     assert ready is False
-    assert blocked is blocked_response
-    assert elapsed < 5.0, "should bail on the first poll, not wait out the timeout"
+    assert blocked["data"]["reason"] == "modal_dialog"
+    assert blocked["hint"] == "answer_dialog"
+    assert elapsed < 5.0, "should not wait out the readiness timeout"
     assert polls == 1
 
 
@@ -210,7 +232,12 @@ async def test_wait_for_editor_ready_keeps_waiting_through_a_busy_main_thread(mo
             }
         return {"data": {"advice": {"ready_for_tools": True, "blocking_reasons": []}}}
 
+    async def fake_send(send_fn, unity_instance, command, params, **kwargs):
+        return {"success": True, "data": _liveness(blocked=False, stall_ms=1200)}
+
     monkeypatch.setattr(mod.editor_state, "get_editor_state", fake_get_editor_state)
+    monkeypatch.setattr(mod.unity_transport, "send_with_unity_instance", fake_send)
+    monkeypatch.setattr(mod, "get_unity_instance_from_context", _async_none)
 
     ready, _, blocked = await mod.wait_for_editor_ready(_Ctx(), timeout_s=10.0)
 
@@ -242,6 +269,25 @@ async def test_read_path_reports_answerable_not_platform_support(monkeypatch):
     assert data["data"]["blocked"] is True
     assert data["data"]["dialog"]["answerable"] is False
     assert data["data"]["dialog"]["title"] == "Migration Step 2"
+
+
+
+@pytest.mark.asyncio
+async def test_read_path_rejects_stale_liveness_snapshot(monkeypatch):
+    from services.tools import answer_dialog as mod
+
+    async def fake_send(send_fn, unity_instance, command, params, **kwargs):
+        return {"success": True, "data": _liveness(blocked=False, sample_age_ms=6001)}
+
+    monkeypatch.setattr(mod.unity_transport, "send_with_unity_instance", fake_send)
+    monkeypatch.setattr(mod, "get_unity_instance_from_context", _async_none)
+
+    resp = await mod.answer_dialog(_Ctx())
+    data = resp.model_dump() if hasattr(resp, "model_dump") else resp
+
+    assert data["success"] is False
+    assert data["hint"] == "retry"
+    assert data["data"]["reason"] == "liveness_probe_stale"
 
 
 @pytest.mark.asyncio

@@ -14,6 +14,8 @@ import transport.legacy.unity_connection as _legacy_conn
 
 logger = logging.getLogger(__name__)
 
+_LIVENESS_SAMPLE_MAX_AGE_MS = 5000
+
 
 @mcp_for_unity_tool(
     description=(
@@ -49,6 +51,19 @@ async def answer_dialog(
             return MCPResponse(**response)
 
         data = response.get("data") if isinstance(response, dict) else None
+        if isinstance(data, dict):
+            sample_age_ms = data.get("sample_age_ms")
+            if isinstance(sample_age_ms, (int, float)) and sample_age_ms > _LIVENESS_SAMPLE_MAX_AGE_MS:
+                return MCPResponse(
+                    success=False,
+                    error=(
+                        f"Unity's modal liveness snapshot is stale ({sample_age_ms} ms); "
+                        "refusing to report that no dialog is open."
+                    ),
+                    hint="retry",
+                    data={"reason": "liveness_probe_stale", "sample_age_ms": sample_age_ms},
+                )
+
         modal = (data or {}).get("modal") if isinstance(data, dict) else None
 
         if not isinstance(modal, dict) or not modal.get("blocked"):
@@ -67,7 +82,7 @@ async def answer_dialog(
                     "title": modal.get("title"),
                     "body": modal.get("body"),
                     "buttons": modal.get("buttons") or [],
-                    "answerable": bool(modal.get("answerable")),
+                    "answerable": bool(modal.get("answerable")) and bool(modal.get("supported")),
                 },
                 "main_thread_stall_ms": (data or {}).get("main_thread_stall_ms"),
             },

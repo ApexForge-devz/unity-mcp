@@ -35,6 +35,76 @@ def _in_pytest() -> bool:
     return "PYTEST_CURRENT_TEST" in os.environ
 
 
+async def _probe_blocking_modal(ctx: Context) -> dict[str, Any] | None:
+    """Probe liveness off the main-thread command queue while Editor readiness is stalled."""
+    try:
+        unity_instance = await get_unity_instance_from_context(ctx)
+        response = await unity_transport.send_with_unity_instance(
+            _legacy_conn.async_send_command_with_retry,
+            unity_instance,
+            "liveness",
+            {},
+            retry_on_reload=False,
+        )
+    except Exception:
+        return None
+
+    if hasattr(response, "model_dump"):
+        response = response.model_dump()
+    if not isinstance(response, dict):
+        return None
+
+    data = response.get("data") if isinstance(response.get("data"), dict) else {}
+    # Preserve a modal classification already produced by PluginHub.
+    if response.get("success") is False and data.get("reason") == "modal_dialog":
+        return response
+    if response.get("success") is not True:
+        return None
+
+    sample_age_ms = data.get("sample_age_ms")
+    if isinstance(sample_age_ms, (int, float)) and sample_age_ms > 5000:
+        return MCPResponse(
+            success=False,
+            error=(
+                f"Unity's modal liveness sampler is stale ({sample_age_ms} ms); "
+                "readiness cannot be confirmed safely."
+            ),
+            hint="retry",
+            data={"reason": "liveness_probe_stale", "sample_age_ms": sample_age_ms},
+        ).model_dump()
+
+    modal = data.get("modal") if isinstance(data.get("modal"), dict) else {}
+    if not modal.get("blocked"):
+        return None
+
+    supported = bool(modal.get("supported"))
+    answerable = supported and bool(modal.get("answerable"))
+    title = modal.get("title") or "(untitled dialog)"
+    body = modal.get("body")
+    buttons = modal.get("buttons") or []
+    detail = f"Unity Editor is blocked by modal {'dialog' if modal.get('kind') != 'editor_window' else 'window'} {title!r}"
+    if body:
+        detail += f": {body}"
+    if buttons:
+        detail += f" Options: {', '.join(buttons)}."
+    if not answerable:
+        detail += " Dismiss it in the Editor."
+
+    return MCPResponse(
+        success=False,
+        error=detail,
+        hint="answer_dialog" if answerable else "user_action_required",
+        data={
+            "reason": "modal_dialog",
+            "main_thread_stall_ms": data.get("main_thread_stall_ms"),
+            "dialog": {
+                "title": title, "body": body, "buttons": buttons,
+                "supported": supported, "answerable": answerable,
+            },
+        },
+    ).model_dump()
+
+
 async def wait_for_editor_ready(
     ctx: Context, timeout_s: float = 30.0
 ) -> tuple[bool, float, dict[str, Any] | None]:
@@ -52,15 +122,18 @@ async def wait_for_editor_ready(
         return (True, 0.0, None)
 
     start = time.monotonic()
+    last_liveness_probe = 0.0
     while time.monotonic() - start < timeout_s:
         try:
             state_resp = await editor_state.get_editor_state(ctx)
             state = state_resp.model_dump() if hasattr(state_resp, "model_dump") else state_resp
 
+            should_probe_liveness = False
             if isinstance(state, dict) and state.get("success") is False:
                 reason = (state.get("data") or {}).get("reason")
                 if reason in _WAITING_WONT_HELP_REASONS:
                     return (False, time.monotonic() - start, state)
+                should_probe_liveness = True
 
             data = (state or {}).get("data") if isinstance(state, dict) else None
             advice = (data or {}).get("advice") if isinstance(data, dict) else None
@@ -70,8 +143,18 @@ async def wait_for_editor_ready(
                 blocking = set(advice.get("blocking_reasons") or [])
                 if not (blocking & _REAL_BLOCKING_REASONS):
                     return (True, time.monotonic() - start, None)
+                should_probe_liveness = True
         except Exception:
-            pass  # not ready yet — keep polling
+            should_probe_liveness = True  # connection errors may be a consequence of a blocked Editor
+
+        # get_editor_state cannot always include the result of a timed-out command. Probe the
+        # receive-thread liveness path independently, but not on every 250 ms polling iteration.
+        now = time.monotonic()
+        if should_probe_liveness and now - last_liveness_probe >= 1.0:
+            last_liveness_probe = now
+            blocked = await _probe_blocking_modal(ctx)
+            if blocked is not None:
+                return (False, time.monotonic() - start, blocked)
         await asyncio.sleep(0.25)
 
     return (False, time.monotonic() - start, None)

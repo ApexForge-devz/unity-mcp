@@ -34,10 +34,13 @@ namespace MCPForUnity.Editor.Services
         private static long _snapshotAtMs;
         private static Thread _sampler;
         private static volatile bool _stopRequested;
+        private static readonly ManualResetEvent StopSignal = new ManualResetEvent(false);
 
         static EditorLivenessProbe()
         {
             _snapshotAtMs = Clock.ElapsedMilliseconds;
+            _stopRequested = false;
+            StopSignal.Reset();
 
             AssemblyReloadEvents.beforeAssemblyReload += StopSampler;
             EditorApplication.quitting += StopSampler;
@@ -58,6 +61,21 @@ namespace MCPForUnity.Editor.Services
         private static void StopSampler()
         {
             _stopRequested = true;
+            StopSignal.Set();
+
+            // A domain reload must not leave a background sampler executing code from the old
+            // editor domain. Capture has an explicit time budget, so this join is bounded.
+            Thread sampler = _sampler;
+            if (sampler != null && sampler.IsAlive && Thread.CurrentThread != sampler)
+            {
+                int joinTimeoutMs = ModalDialogProbe.MaxCaptureDurationMs + SampleIntervalMs + 1000;
+                if (!sampler.Join(joinTimeoutMs))
+                {
+                    McpLog.Warn(
+                        $"Liveness sampler did not stop within {joinTimeoutMs} ms; a reload may leave an old sampler alive."
+                    );
+                }
+            }
         }
 
         private static void SampleLoop()
@@ -82,7 +100,10 @@ namespace MCPForUnity.Editor.Services
                     // age tells the server the probe is not reporting.
                 }
 
-                Thread.Sleep(SampleIntervalMs);
+                if (StopSignal.WaitOne(SampleIntervalMs))
+                {
+                    break;
+                }
             }
         }
 
