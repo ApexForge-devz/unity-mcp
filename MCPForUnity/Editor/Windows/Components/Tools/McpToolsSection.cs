@@ -741,12 +741,18 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
 
         private VisualElement CreateGameViewSizeControls()
         {
+            const string preferenceKey = "MCPForUnity.ToolsSection.FixedGameViewFoldout";
             var container = new VisualElement();
             container.AddToClassList("tool-editor-controls");
 
-            var heading = new Label("Fixed Game View size");
-            heading.AddToClassList("tool-editor-control-heading");
-            container.Add(heading);
+            var foldout = new Foldout
+            {
+                text = "Fixed Game View size",
+                value = EditorPrefs.GetBool(preferenceKey, false)
+            };
+            foldout.AddToClassList("tool-editor-control-foldout");
+            foldout.RegisterValueChangedCallback(evt => EditorPrefs.SetBool(preferenceKey, evt.newValue));
+            container.Add(foldout);
 
             var inputRow = new VisualElement();
             inputRow.AddToClassList("tool-editor-control-row");
@@ -775,9 +781,9 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
 
             buttonRow.Add(readButton);
             buttonRow.Add(applyButton);
-            container.Add(inputRow);
-            container.Add(buttonRow);
-            container.Add(status);
+            foldout.Add(inputRow);
+            foldout.Add(buttonRow);
+            foldout.Add(status);
             return container;
         }
 
@@ -882,12 +888,18 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
 
         private VisualElement CreateEditorWindowCaptureControls()
         {
+            const string preferenceKey = "MCPForUnity.ToolsSection.EditorWindowCaptureFoldout";
             var container = new VisualElement();
             container.AddToClassList("tool-editor-controls");
 
-            var heading = new Label("Editor window screenshot");
-            heading.AddToClassList("tool-editor-control-heading");
-            container.Add(heading);
+            var foldout = new Foldout
+            {
+                text = "Editor window screenshot",
+                value = EditorPrefs.GetBool(preferenceKey, false)
+            };
+            foldout.AddToClassList("tool-editor-control-foldout");
+            foldout.RegisterValueChangedCallback(evt => EditorPrefs.SetBool(preferenceKey, evt.newValue));
+            container.Add(foldout);
 
             var idsByChoice = new Dictionary<string, int>();
             var selectionRow = new VisualElement();
@@ -917,9 +929,9 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
 
             buttonRow.Add(refreshButton);
             buttonRow.Add(captureButton);
-            container.Add(selectionRow);
-            container.Add(buttonRow);
-            container.Add(status);
+            foldout.Add(selectionRow);
+            foldout.Add(buttonRow);
+            foldout.Add(status);
             return container;
         }
 

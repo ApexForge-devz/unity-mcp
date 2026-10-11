@@ -768,3 +768,21 @@
     margin-top: 3px;
     margin-bottom: 2px;
 }
+
+
+/* Keep per-tool Editor utility panels compact until the user expands them. */
+.tool-editor-control-foldout {
+    margin-top: 0px;
+    margin-bottom: 2px;
+}
+
+.tool-editor-control-foldout > .unity-foldout__toggle {
+    padding: 4px 0px;
+    font-size: 11px;
+    -unity-font-style: bold;
+}
+
+.tool-editor-control-foldout > .unity-foldout__content {
+    margin-top: 4px;
+    padding-left: 8px;
+}
