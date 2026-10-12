@@ -427,7 +427,11 @@ class PluginHub(WebSocketEndpoint):
             supported = bool(modal.get("supported"))
             answerable = supported and bool(modal.get("answerable"))
             kind = modal.get("kind")
-            what = "modal window" if kind == "editor_window" else "dialog"
+            what = (
+                "dialog" if kind == "dialog" else
+                "modal window" if kind == "editor_window" else
+                "unidentified modal UI"
+            )
             detail = f"Unity Editor is blocked by {what} {title!r}"
             if body:
                 detail += f": {body}"

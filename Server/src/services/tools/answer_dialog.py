@@ -97,7 +97,7 @@ async def answer_dialog(
 
         return MCPResponse(
             success=True,
-            message=f"Dialog open: {modal.get('title')!r}",
+            message=f"Modal UI is blocking Unity: {modal.get('title')!r}",
             data={
                 "blocked": True,
                 "dialog": {

@@ -106,7 +106,13 @@ async def _probe_blocking_modal(
     title = modal.get("title") or "(untitled dialog)"
     body = modal.get("body")
     buttons = modal.get("buttons") or []
-    detail = f"Unity Editor is blocked by modal {'dialog' if modal.get('kind') != 'editor_window' else 'window'} {title!r}"
+    kind = modal.get("kind")
+    modal_label = (
+        "dialog" if kind == "dialog" else
+        "window" if kind == "editor_window" else
+        "unidentified modal UI"
+    )
+    detail = f"Unity Editor is blocked by {modal_label} {title!r}"
     if body:
         detail += f": {body}"
     if buttons:

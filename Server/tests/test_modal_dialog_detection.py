@@ -111,6 +111,26 @@ async def test_modal_on_unsupported_platform_asks_for_a_human(probe):
 
 
 @pytest.mark.asyncio
+async def test_unidentified_modal_requires_manual_intervention(probe):
+    probe["payload"] = _liveness(
+        blocked=True,
+        stall_ms=9000,
+        title="Unidentified modal window",
+        kind="unknown",
+        buttons=[],
+        answerable=False,
+    )
+
+    result = await PluginHub.describe_stall("sess", "manage_asset")
+
+    assert result["success"] is False
+    assert result["hint"] == "user_action_required"
+    assert result["data"]["reason"] == "modal_dialog"
+    assert result["data"]["dialog"]["answerable"] is False
+    assert "unidentified modal UI" in result["error"]
+
+
+@pytest.mark.asyncio
 async def test_long_main_thread_operation_is_a_wait_not_a_dialog(probe):
     probe["payload"] = _liveness(blocked=False, stall_ms=9000)
 
