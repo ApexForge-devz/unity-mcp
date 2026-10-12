@@ -23,6 +23,8 @@ def test_no_print_statements_in_codebase():
     # CLI tools that intentionally print to stdout
     ALLOWED_PRINT_FILES = {
         Path("scene_generator") / "test_pipeline.py",
+        # Local schema benchmark intentionally prints its JSON report to stdout.
+        Path("benchmark_tool_schema_optimization.py"),
     }
     offenders = []
     syntax_errors = []

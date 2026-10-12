@@ -30,6 +30,10 @@
   },
   "tools": [
     {
+      "name": "answer_dialog",
+      "description": "Reads or answers a modal dialog blocking the Unity Editor"
+    },
+    {
       "name": "apply_text_edits",
       "description": "Apply text edits to script content"
     },
@@ -92,6 +96,10 @@
     {
       "name": "get_test_job",
       "description": "Get status of async test job"
+    },
+    {
+      "name": "get_tool_details",
+      "description": "Retrieve a tool's complete original description and JSON Schema when its compact listing is insufficient"
     },
     {
       "name": "import_model",

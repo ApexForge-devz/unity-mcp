@@ -51,19 +51,6 @@ async def answer_dialog(
             return MCPResponse(**response)
 
         data = response.get("data") if isinstance(response, dict) else None
-        if isinstance(data, dict):
-            sample_age_ms = data.get("sample_age_ms")
-            if isinstance(sample_age_ms, (int, float)) and sample_age_ms > _LIVENESS_SAMPLE_MAX_AGE_MS:
-                return MCPResponse(
-                    success=False,
-                    error=(
-                        f"Unity's modal liveness snapshot is stale ({sample_age_ms} ms); "
-                        "refusing to report that no dialog is open."
-                    ),
-                    hint="retry",
-                    data={"reason": "liveness_probe_stale", "sample_age_ms": sample_age_ms},
-                )
-
         modal = (data or {}).get("modal") if isinstance(data, dict) else None
 
         if not isinstance(modal, dict) or "blocked" not in modal:
@@ -74,18 +61,42 @@ async def answer_dialog(
                 data={"reason": "liveness_payload_missing"},
             )
 
+        sample_age_ms = data.get("sample_age_ms") if isinstance(data, dict) else None
+        sample_is_stale = (
+            isinstance(sample_age_ms, (int, float))
+            and sample_age_ms > _LIVENESS_SAMPLE_MAX_AGE_MS
+        )
+
+        # Unsupported platforms cannot positively identify a modal regardless of snapshot age.
+        # Report that uncertainty before applying the freshness guard used by the supported path;
+        # otherwise a stale heartbeat would mask the more important "cannot detect" limitation.
         if not modal.get("supported"):
             return MCPResponse(
                 success=True,
                 message=(
                     "Modal-dialog identification is not supported on this platform. "
-                    "The liveness heartbeat is available; inspect the Unity Editor manually if commands are stalled."
+                    "Do not interpret this as confirmation that no dialog is open; inspect the Unity Editor "
+                    "manually if commands are stalled."
                 ),
                 data={
                     "blocked": None,
                     "supported": False,
-                    "main_thread_stall_ms": data.get("main_thread_stall_ms"),
+                    "sample_age_ms": sample_age_ms,
+                    "main_thread_stall_ms": (
+                        None if sample_is_stale else data.get("main_thread_stall_ms")
+                    ),
                 },
+            )
+
+        if sample_is_stale:
+            return MCPResponse(
+                success=False,
+                error=(
+                    f"Unity's modal liveness snapshot is stale ({sample_age_ms} ms); "
+                    "refusing to report that no dialog is open."
+                ),
+                hint="retry",
+                data={"reason": "liveness_probe_stale", "sample_age_ms": sample_age_ms},
             )
 
         if not modal.get("blocked"):
