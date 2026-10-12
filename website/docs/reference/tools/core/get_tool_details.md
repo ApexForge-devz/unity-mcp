@@ -6,7 +6,7 @@ description: "Retrieve a tool's complete original description and JSON Schema wh
 
 # `get_tool_details`
 
-> **Auto-generated** from the Python tool registry. Do not hand-edit outside `<!-- examples:start --><!-- examples:end -->` blocks — the `tools/generate_docs_reference.py` generator will overwrite them.
+> **Auto-generated** from the Python tool registry. Do not hand-edit outside `<!-- examples:start --><!-- examples:end -->` blocks — the generator (`tools/generate_docs_reference.py`) will overwrite them.
 
 **Group:** `core` &nbsp;·&nbsp; **Module:** `services.tools.get_tool_details`
 
