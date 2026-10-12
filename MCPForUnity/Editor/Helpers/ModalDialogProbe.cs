@@ -248,7 +248,14 @@ namespace MCPForUnity.Editor.Helpers
             // This path deliberately bypasses the main-thread command queue. Do not let two recovery
             // calls click the same transient modal, and do not block a second request until its
             // caller times out and then perform the action later.
-            observed = new ModalDialogInfo { Supported = IsSupported };
+            observed = new ModalDialogInfo
+            {
+                Supported = IsSupported,
+                Blocked = true,
+                Kind = "unknown",
+                Answerable = false,
+                Title = "Modal answer already in progress"
+            };
             error = "Another modal-answer request is already in progress.";
             if (!System.Threading.Monitor.TryEnter(AnswerLock))
             {
