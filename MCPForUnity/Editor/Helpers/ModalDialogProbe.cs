@@ -49,6 +49,8 @@ namespace MCPForUnity.Editor.Helpers
         private const uint WM_GETTEXT = 0x000D;
         private const uint BM_CLICK = 0x00F5;
         private const uint SMTO_ABORTIFHUNG = 0x0002;
+        private const uint GW_OWNER = 4;
+        private const int AnswerVerificationTimeoutMs = 2000;
         private const int TextReadTimeoutMs = 400;
         internal const int MaxCaptureDurationMs = 2500;
         private const int MaxAnswerScanDurationMs = 2500;
@@ -69,6 +71,9 @@ namespace MCPForUnity.Editor.Helpers
 
         [DllImport("user32.dll")]
         private static extern bool IsWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         private static extern int GetClassNameW(IntPtr hWnd, StringBuilder buffer, int maxCount);
@@ -108,52 +113,28 @@ namespace MCPForUnity.Editor.Helpers
             {
                 uint myPid = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
 
-                // Windows disables a modal's owner while the modal is up. That — not the window
-                // class — is what "a modal is blocking the Editor" means, and it is what makes a
-                // Unity-drawn EditorWindow.ShowModal visible here too.
+                                // Modal UI must be an owned window whose owner chain contains a disabled
+                // window in this process. A disabled top-level window alone is insufficient:
+                // the Editor can contain several windows plus unrelated disabled windows.
                 var enabled = new List<IntPtr>();
                 bool anyDisabled = false;
-
                 IntPtr window = IntPtr.Zero;
                 for (int i = 0; i < MaxTopLevelScan; i++)
                 {
                     if (captureClock.ElapsedMilliseconds >= MaxCaptureDurationMs)
                     {
-                        // Do not claim "no modal" when a pathological desktop/window scan exceeded
-                        // the budget. Mark the probe unsupported for this sample so callers fail safe.
                         info.Supported = false;
                         return info;
                     }
-
                     window = FindWindowExW(IntPtr.Zero, window, IntPtr.Zero, IntPtr.Zero);
-                    if (window == IntPtr.Zero)
-                    {
-                        break;
-                    }
-
+                    if (window == IntPtr.Zero) break;
                     GetWindowThreadProcessId(window, out uint pid);
-                    if (pid != myPid || !IsWindowVisible(window))
-                    {
-                        continue;
-                    }
-
-                    if (IsWindowEnabled(window))
-                    {
-                        enabled.Add(window);
-                    }
-                    else
-                    {
-                        anyDisabled = true;
-                    }
+                    if (pid != myPid || !IsWindowVisible(window)) continue;
+                    if (IsWindowEnabled(window)) enabled.Add(window);
+                    else anyDisabled = true;
                 }
+                if (!anyDisabled || enabled.Count == 0) return info;
 
-                if (!anyDisabled || enabled.Count == 0)
-                {
-                    return info;
-                }
-
-                // Prefer a native dialog when one is up: it is the only kind whose buttons can be
-                // read and pressed.
                 IntPtr modal = IntPtr.Zero;
                 foreach (var candidate in enabled)
                 {
@@ -162,7 +143,8 @@ namespace MCPForUnity.Editor.Helpers
                         info.Supported = false;
                         return info;
                     }
-                    if (string.Equals(ClassOf(candidate), DialogWindowClass, StringComparison.Ordinal))
+                    if (string.Equals(ClassOf(candidate), DialogWindowClass, StringComparison.Ordinal)
+                        && IsOwnedByDisabledWindow(candidate, myPid))
                     {
                         modal = candidate;
                         break;
@@ -172,7 +154,26 @@ namespace MCPForUnity.Editor.Helpers
                 bool isNativeDialog = modal != IntPtr.Zero;
                 if (!isNativeDialog)
                 {
-                    modal = enabled[0];
+                    foreach (var candidate in enabled)
+                    {
+                        if (captureClock.ElapsedMilliseconds >= MaxCaptureDurationMs)
+                        {
+                            info.Supported = false;
+                            return info;
+                        }
+                        if (IsOwnedByDisabledWindow(candidate, myPid))
+                        {
+                            modal = candidate;
+                            break;
+                        }
+                    }
+                }
+                if (modal == IntPtr.Zero)
+                {
+                    // A disabled window exists, but no owner chain identifies the modal.
+                    // Fail closed rather than guessing which enabled window blocks Unity.
+                    info.Supported = false;
+                    return info;
                 }
 
                 info.Blocked = true;
@@ -281,12 +282,13 @@ namespace MCPForUnity.Editor.Helpers
                     return false;
                 }
 
-                if (!string.Equals(ClassOf(child), ButtonWindowClass, StringComparison.Ordinal))
+                if (!string.Equals(ClassOf(child), ButtonWindowClass, StringComparison.Ordinal)
+                    || !IsWindowVisible(child) || !IsWindowEnabled(child))
                 {
                     continue;
                 }
 
-                if (!string.Equals(StripAccelerator(TextOf(child)), buttonLabel, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(StripAccelerator(TextOf(child)), buttonLabel, StringComparison.OrdinalIgnoreCase)
                 {
                     continue;
                 }
@@ -297,10 +299,53 @@ namespace MCPForUnity.Editor.Helpers
                     return false;
                 }
 
-                return true;
+                // PostMessage only proves Windows queued the click. Verify the target dialog closes.
+                var verifyClock = Stopwatch.StartNew();
+                while (verifyClock.ElapsedMilliseconds < AnswerVerificationTimeoutMs)
+                {
+                    if (!IsWindow(handle)) return true;
+                    System.Threading.Thread.Sleep(50);
+                }
+                observed = Capture();
+                error = $"Windows accepted the click for '{buttonLabel}', but the original dialog remained open; no successful answer is reported.";
+                return false;
             }
 
             error = $"Dialog '{observed.Title}' has no button labelled '{buttonLabel}'. Available: {string.Join(", ", observed.Buttons.ToArray())}";
+            return false;
+        }
+
+        private static bool IsOwnedByDisabledWindow(IntPtr window, uint processId)
+        {
+            return HasDisabledOwner(
+                window,
+                processId,
+                handle => GetWindow(handle, GW_OWNER),
+                IsWindowEnabled,
+                handle =>
+                {
+                    GetWindowThreadProcessId(handle, out uint ownerProcessId);
+                    return ownerProcessId;
+                });
+        }
+
+        /// <summary>Pure owner-chain predicate used by the probe and deterministic regression tests.</summary>
+        internal static bool HasDisabledOwner(
+            IntPtr window,
+            uint processId,
+            Func<IntPtr, IntPtr> getOwner,
+            Func<IntPtr, bool> isWindowEnabled,
+            Func<IntPtr, uint> getProcessId)
+        {
+            if (window == IntPtr.Zero || getOwner == null || isWindowEnabled == null || getProcessId == null)
+                return false;
+            IntPtr owner = getOwner(window);
+            for (int depth = 0; owner != IntPtr.Zero && depth < 16; depth++)
+            {
+                if (getProcessId(owner) != processId) return false;
+                if (!isWindowEnabled(owner)) return true;
+                owner = getOwner(owner);
+            }
             return false;
         }
 

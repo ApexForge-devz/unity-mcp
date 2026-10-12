@@ -98,8 +98,8 @@ namespace MCPForUnity.Editor.Helpers
                     // Capture before saving: the path is read back off the Scene struct, and
                     // anything that reopens or replaces the scene invalidates that handle.
                     string path = scene.path;
-                    EditorSceneManager.SaveScene(scene);
-                    outcome.OverwrittenScenes.Add(path);
+                    bool saved = EditorSceneManager.SaveScene(scene);
+                    if (!RecordOverwriteResult(outcome, path, saved)) return outcome;
                 }
 
                 RecordBaseline(OpenScenes());
@@ -146,6 +146,21 @@ namespace MCPForUnity.Editor.Helpers
         internal static void RecordBaseline()
         {
             RecordBaseline(OpenScenes());
+        }
+
+        internal static bool RecordOverwriteResult(Outcome outcome, string path, bool saved)
+        {
+            if (saved)
+            {
+                outcome.OverwrittenScenes.Add(path);
+                return true;
+            }
+
+            outcome.Blocked = true;
+            outcome.Error =
+                $"Failed to save the current Editor scene '{path}' while resolving an external disk change. " +
+                "The refresh was not run; resolve this scene manually and retry.";
+            return false;
         }
 
         private static string BuildBlockedMessage(List<Scene> changed, bool anyDirty, bool multiScene)

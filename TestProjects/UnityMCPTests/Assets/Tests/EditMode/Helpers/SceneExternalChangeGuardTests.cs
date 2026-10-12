@@ -38,6 +38,29 @@ namespace MCPForUnityTests.Editor
                 Directory.Delete(_tempDirectory, true);
         }
 
+        [Test]
+        public void KeepEditorSaveFailureBlocksRefreshAndDoesNotClaimOverwrite()
+        {
+            var outcome = new MCPForUnity.Editor.Helpers.SceneExternalChangeGuard.Outcome();
+            bool saved = MCPForUnity.Editor.Helpers.SceneExternalChangeGuard.RecordOverwriteResult(
+                outcome, "Assets/Scenes/Changed.unity", false);
+            Assert.IsFalse(saved);
+            Assert.IsTrue(outcome.Blocked);
+            StringAssert.Contains("Failed to save", outcome.Error);
+            Assert.IsEmpty(outcome.OverwrittenScenes);
+        }
+
+        [Test]
+        public void KeepEditorSuccessfulSaveIsRecordedAsOverwritten()
+        {
+            var outcome = new MCPForUnity.Editor.Helpers.SceneExternalChangeGuard.Outcome();
+            bool saved = MCPForUnity.Editor.Helpers.SceneExternalChangeGuard.RecordOverwriteResult(
+                outcome, "Assets/Scenes/Changed.unity", true);
+            Assert.IsTrue(saved);
+            Assert.IsFalse(outcome.Blocked);
+            CollectionAssert.AreEqual(new[] { "Assets/Scenes/Changed.unity" }, outcome.OverwrittenScenes);
+        }
+
         [TestCase("invalid")]
         [TestCase("discard_everything")]
         public void Reconcile_UnknownModeFailsClosed(string mode)

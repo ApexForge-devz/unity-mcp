@@ -63,7 +63,9 @@ namespace MCPForUnity.Editor.Services.Transport
         }
 
         private static readonly Dictionary<string, PendingCommand> Pending = new();
+        private static readonly Queue<string> PendingOrder = new();
         private static readonly object PendingLock = new();
+        private static string _activeCommandId;
         private static bool updateHooked;
         private static bool initialised;
 
@@ -123,6 +125,7 @@ namespace MCPForUnity.Editor.Services.Transport
             lock (PendingLock)
             {
                 Pending[id] = pending;
+                PendingOrder.Enqueue(id);
             }
 
             // Proactively wake up the main thread execution loop. This improves responsiveness
@@ -236,51 +239,42 @@ namespace MCPForUnity.Editor.Services.Transport
 
         private static void ProcessQueue()
         {
-            if (Interlocked.Exchange(ref _processingFlag, 1) == 1)
-            {
-                return;
-            }
-
+            if (Interlocked.Exchange(ref _processingFlag, 1) == 1) return;
             try
             {
-            List<(string id, PendingCommand pending)> ready;
-
-            lock (PendingLock)
-            {
-                // Early exit inside lock to prevent per-frame List allocations (GitHub issue #577)
-                if (Pending.Count == 0)
+                string id = null;
+                PendingCommand pending = null;
+                PendingCommand cancelled = null;
+                lock (PendingLock)
                 {
-                    return;
-                }
-
-                ready = new List<(string, PendingCommand)>(Pending.Count);
-                foreach (var kvp in Pending)
-                {
-                    if (kvp.Value.IsExecuting)
+                    if (_activeCommandId != null && Pending.ContainsKey(_activeCommandId)) return;
+                    _activeCommandId = null;
+                    while (PendingOrder.Count > 0)
                     {
-                        continue;
+                        string nextId = PendingOrder.Dequeue();
+                        if (!Pending.TryGetValue(nextId, out var candidate)) continue;
+                        if (candidate.CancellationToken.IsCancellationRequested)
+                        {
+                            Pending.Remove(nextId);
+                            cancelled = candidate;
+                            break;
+                        }
+                        candidate.IsExecuting = true;
+                        _activeCommandId = nextId;
+                        id = nextId;
+                        pending = candidate;
+                        break;
                     }
-
-                    kvp.Value.IsExecuting = true;
-                    ready.Add((kvp.Key, kvp.Value));
                 }
-
-                if (ready.Count == 0)
+                if (cancelled != null)
                 {
-                    UnhookUpdateIfIdle();
+                    cancelled.TrySetCanceled();
+                    cancelled.Dispose();
                     return;
                 }
+                if (pending != null) ProcessCommand(id, pending);
             }
-
-            foreach (var (id, pending) in ready)
-            {
-                ProcessCommand(id, pending);
-            }
-            }
-            finally
-            {
-                Interlocked.Exchange(ref _processingFlag, 0);
-            }
+            finally { Interlocked.Exchange(ref _processingFlag, 0); }
         }
 
         private static void ProcessCommand(string id, PendingCommand pending)
@@ -391,7 +385,11 @@ namespace MCPForUnity.Editor.Services.Transport
 
                 var logType = resourceMeta != null ? "resource" : toolMeta != null ? "tool" : "unknown";
                 var sw = McpLogRecord.IsEnabled ? System.Diagnostics.Stopwatch.StartNew() : null;
-                var result = CommandRegistry.ExecuteCommand(command.type, parameters, pending.CompletionSource);
+                var result = CommandRegistry.ExecuteCommand(
+                    command.type,
+                    parameters,
+                    pending.CompletionSource,
+                    () => OnAsyncExecutionCompleted(id, pending));
 
                 if (result == null)
                 {
@@ -409,6 +407,10 @@ namespace MCPForUnity.Editor.Services.Transport
                             logStatus = "ERROR";
                             logError = t.Exception?.InnerException?.Message;
                         }
+                        else if (t.IsCanceled)
+                        {
+                            logStatus = "CANCELLED";
+                        }
                         else if (t.IsCompletedSuccessfully && t.Result != null)
                         {
                             try
@@ -424,7 +426,6 @@ namespace MCPForUnity.Editor.Services.Transport
                         }
                         McpLogRecord.Log(capturedType, capturedParams, capturedLogType,
                             logStatus, sw?.ElapsedMilliseconds ?? 0, logError);
-                        EditorApplication.delayCall += () => RemovePending(id, pending);
                     }, TaskScheduler.Default);
                     return;
                 }
@@ -452,19 +453,37 @@ namespace MCPForUnity.Editor.Services.Transport
             }
         }
 
+        private static void OnAsyncExecutionCompleted(string id, PendingCommand pending)
+        {
+            void ScheduleCleanup() { EditorApplication.delayCall += () => RemovePending(id, pending); }
+            if (Thread.CurrentThread.ManagedThreadId == _mainThreadId) ScheduleCleanup();
+            else if (_mainThreadContext != null) _mainThreadContext.Post(_ => ScheduleCleanup(), null);
+            else RemovePending(id, pending);
+        }
+
         private static void CancelPending(string id, CancellationToken token)
         {
             PendingCommand pending = null;
+            bool removedWhileQueued = false;
             lock (PendingLock)
             {
-                if (Pending.Remove(id, out pending))
+                if (Pending.TryGetValue(id, out pending))
                 {
-                    UnhookUpdateIfIdle();
+                    if (pending.IsExecuting || _activeCommandId == id)
+                    {
+                        // Cancel the caller promptly, but keep the active slot: Unity work can ignore cancellation.
+                        removedWhileQueued = false;
+                    }
+                    else
+                    {
+                        Pending.Remove(id);
+                        removedWhileQueued = true;
+                    }
                 }
             }
-
-            pending?.TrySetCanceled();
-            pending?.Dispose();
+            if (pending == null) return;
+            pending.TrySetCanceled();
+            if (removedWhileQueued) pending.Dispose();
         }
 
         private static void RemovePending(string id, PendingCommand pending)
@@ -472,9 +491,9 @@ namespace MCPForUnity.Editor.Services.Transport
             lock (PendingLock)
             {
                 Pending.Remove(id);
+                if (_activeCommandId == id) _activeCommandId = null;
                 UnhookUpdateIfIdle();
             }
-
             pending.Dispose();
         }
 
