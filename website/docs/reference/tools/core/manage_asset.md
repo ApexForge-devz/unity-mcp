@@ -14,7 +14,7 @@ description: "Performs asset operations (import, create, modify, delete, etc.) i
 
 Performs asset operations (import, create, modify, delete, etc.) in Unity.
 
-For search, set `path` to an existing folder (e.g. `Assets`) and put asset names or AssetDatabase queries in `search_pattern` (e.g. `Player t:Prefab`).
+For search, set `path` to an existing folder (e.g. 'Assets') and put asset names or AssetDatabase queries in `search_pattern` (e.g. 'Player t:Prefab').
 
 Tip (payload safety): for `action="search"`, prefer paging (`page_size`, `page_number`) and keep `generate_preview=false` (previews can add large base64 blobs). Only the requested page's assets are loaded.
 

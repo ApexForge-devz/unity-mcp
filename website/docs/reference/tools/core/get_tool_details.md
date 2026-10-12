@@ -1,12 +1,18 @@
 ---
 title: get_tool_details
 sidebar_label: get_tool_details
-description: Retrieve the complete original description and JSON Schema for a registered tool.
+description: "Retrieve a tool's complete original description and JSON Schema when its compact listing is insufficient."
 ---
 
 # `get_tool_details`
 
-Returns a tool's complete registered description, input JSON Schema, optional output schema, annotations, and tags. This tool does not execute the selected tool.
+> **Auto-generated** from the Python tool registry. Do not hand-edit outside `<!-- examples:start --><!-- examples:end -->` blocks — the `tools/generate_docs_reference.py` generator will overwrite them.
+
+**Group:** `core` &nbsp;·&nbsp; **Module:** `services.tools.get_tool_details`
+
+## Description
+
+Retrieve a tool's complete original description and JSON Schema when its compact listing is insufficient.
 
 ## Parameters
 
@@ -14,6 +20,13 @@ Returns a tool's complete registered description, input JSON Schema, optional ou
 |------|------|----------|-------------|
 | `name` | `str` | yes | Exact MCP tool name whose complete definition is needed. |
 
-## Usage
+## Returns
 
-Call this only when the compact tool-list description or parameter descriptions do not provide enough information to safely select arguments. The tool list itself is compacted for token efficiency; this call returns the original registered definition.
+A `dict` containing the Unity response. The exact shape depends on the action.
+
+## Examples
+
+<!-- examples:start -->
+*No examples yet. Add usage examples here — they will be preserved across regenerations.*
+<!-- examples:end -->
+
