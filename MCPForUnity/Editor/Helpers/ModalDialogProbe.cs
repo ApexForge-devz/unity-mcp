@@ -113,7 +113,7 @@ namespace MCPForUnity.Editor.Helpers
             {
                 uint myPid = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
 
-                                // Modal UI must be an owned window whose owner chain contains a disabled
+                // Modal UI must be an owned window whose owner chain contains a disabled
                 // window in this process. A disabled top-level window alone is insufficient:
                 // the Editor can contain several windows plus unrelated disabled windows.
                 var enabled = new List<IntPtr>();
@@ -324,7 +324,7 @@ namespace MCPForUnity.Editor.Helpers
                     continue;
                 }
 
-                if (!string.Equals(StripAccelerator(TextOf(child)), buttonLabel, StringComparison.OrdinalIgnoreCase)
+                if (!string.Equals(StripAccelerator(TextOf(child)), buttonLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
