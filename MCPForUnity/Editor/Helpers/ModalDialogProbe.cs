@@ -241,7 +241,31 @@ namespace MCPForUnity.Editor.Helpers
         /// The dialog is re-identified and its title re-checked so the press cannot land on a
         /// different dialog than the caller was shown.
         /// </summary>
+        private static readonly object AnswerLock = new object();
+
         internal static bool TryAnswer(string expectedTitle, string buttonLabel, out string error, out ModalDialogInfo observed)
+        {
+            // This path deliberately bypasses the main-thread command queue. Do not let two recovery
+            // calls click the same transient modal, and do not block a second request until its
+            // caller times out and then perform the action later.
+            observed = new ModalDialogInfo { Supported = IsSupported };
+            error = "Another modal-answer request is already in progress.";
+            if (!System.Threading.Monitor.TryEnter(AnswerLock))
+            {
+                return false;
+            }
+
+            try
+            {
+                return TryAnswerLocked(expectedTitle, buttonLabel, out error, out observed);
+            }
+            finally
+            {
+                System.Threading.Monitor.Exit(AnswerLock);
+            }
+        }
+
+        private static bool TryAnswerLocked(string expectedTitle, string buttonLabel, out string error, out ModalDialogInfo observed)
         {
             observed = Capture();
             error = null;
