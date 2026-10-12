@@ -30,6 +30,10 @@
   },
   "tools": [
     {
+      "name": "answer_dialog",
+      "description": "Reads or answers a modal dialog blocking the Unity Editor"
+    },
+    {
       "name": "apply_text_edits",
       "description": "Apply text edits to script content"
     },
@@ -94,6 +98,10 @@
       "description": "Get status of async test job"
     },
     {
+      "name": "get_tool_details",
+      "description": "Retrieve a tool's complete original description and JSON Schema when its compact listing is insufficient"
+    },
+    {
       "name": "import_model",
       "description": "Import 3D models from the Sketchfab marketplace into the project"
     },
@@ -120,6 +128,10 @@
     {
       "name": "manage_editor",
       "description": "Control Unity Editor state, play mode, preferences, undo/redo"
+    },
+    {
+      "name": "manage_editor_windows",
+      "description": "List and capture open Unity Editor tabs and windows"
     },
     {
       "name": "manage_gameobject",

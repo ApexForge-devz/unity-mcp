@@ -25,40 +25,171 @@ logger = logging.getLogger(__name__)
 # Must match activityPhase values from EditorStateCache.cs
 _REAL_BLOCKING_REASONS = {"compiling", "domain_reload", "running_tests", "asset_import"}
 
+# States that never clear without someone acting on them, so polling through the timeout only
+# delays an answer the caller could already act on.
+_WAITING_WONT_HELP_REASONS = {"modal_dialog"}
+
 
 def _in_pytest() -> bool:
     """Return True when running inside pytest to avoid polling unmocked resources."""
     return "PYTEST_CURRENT_TEST" in os.environ
 
 
-async def wait_for_editor_ready(ctx: Context, timeout_s: float = 30.0) -> tuple[bool, float]:
-    """Poll editor_state until Unity is ready for tool calls.
+async def _probe_blocking_modal(
+    ctx: Context, *, require_detection: bool = False
+) -> dict[str, Any] | None:
+    """Probe liveness off the main-thread queue while readiness is stalled.
 
-    Returns (ready, elapsed_seconds).  Treats exceptions from
-    get_editor_state as "not ready yet" so the loop survives transient
-    connection errors during domain reload.
+    If readiness would otherwise be accepted only because no known blocker was reported,
+    unsupported modal detection cannot safely provide the missing evidence.
+    """
+    try:
+        unity_instance = await get_unity_instance_from_context(ctx)
+        response = await unity_transport.send_with_unity_instance(
+            _legacy_conn.async_send_command_with_retry,
+            unity_instance,
+            "liveness",
+            {},
+            retry_on_reload=False,
+        )
+    except Exception:
+        return None
+
+    if hasattr(response, "model_dump"):
+        response = response.model_dump()
+    if not isinstance(response, dict):
+        return None
+
+    data = response.get("data") if isinstance(response.get("data"), dict) else {}
+    # Preserve a modal classification already produced by PluginHub.
+    if response.get("success") is False and data.get("reason") == "modal_dialog":
+        return response
+    if response.get("success") is not True:
+        return None
+
+    modal = data.get("modal") if isinstance(data.get("modal"), dict) else {}
+    if not modal.get("supported") and require_detection:
+        return MCPResponse(
+            success=False,
+            error=(
+                "The Editor state is not ready and this platform cannot identify modal dialogs. "
+                "Inspect the Unity Editor manually before retrying."
+            ),
+            hint="user_action_required",
+            data={
+                "reason": "modal_detection_unsupported",
+                "main_thread_stall_ms": data.get("main_thread_stall_ms"),
+            },
+        ).model_dump()
+
+    sample_age_ms = data.get("sample_age_ms")
+    if (
+        modal.get("supported")
+        and isinstance(sample_age_ms, (int, float))
+        and sample_age_ms > 5000
+    ):
+        return MCPResponse(
+            success=False,
+            error=(
+                f"Unity's modal liveness sampler is stale ({sample_age_ms} ms); "
+                "readiness cannot be confirmed safely."
+            ),
+            hint="retry",
+            data={"reason": "liveness_probe_stale", "sample_age_ms": sample_age_ms},
+        ).model_dump()
+
+    if not modal.get("blocked"):
+        return None
+
+    supported = bool(modal.get("supported"))
+    answerable = supported and bool(modal.get("answerable"))
+    title = modal.get("title") or "(untitled dialog)"
+    body = modal.get("body")
+    buttons = modal.get("buttons") or []
+    kind = modal.get("kind")
+    modal_label = (
+        "dialog" if kind == "dialog" else
+        "window" if kind == "editor_window" else
+        "unidentified modal UI"
+    )
+    detail = f"Unity Editor is blocked by {modal_label} {title!r}"
+    if body:
+        detail += f": {body}"
+    if buttons:
+        detail += f" Options: {', '.join(buttons)}."
+    if not answerable:
+        detail += " Dismiss it in the Editor."
+
+    return MCPResponse(
+        success=False,
+        error=detail,
+        hint="answer_dialog" if answerable else "user_action_required",
+        data={
+            "reason": "modal_dialog",
+            "main_thread_stall_ms": data.get("main_thread_stall_ms"),
+            "dialog": {
+                "title": title, "body": body, "buttons": buttons,
+                "supported": supported, "answerable": answerable,
+            },
+        },
+    ).model_dump()
+
+
+async def wait_for_editor_ready(
+    ctx: Context, timeout_s: float = 30.0
+) -> tuple[bool, float, dict[str, Any] | None]:
+    """Poll Editor readiness, checking the independent liveness channel before declaring ready.
+
+    Returns (ready, elapsed_seconds, blocked_response). A modal needs an answer, not repeated
+    retries; ordinary compilation/import work can clear by itself and should continue to be polled.
     """
     if _in_pytest():
-        return (True, 0.0)
+        return (True, 0.0, None)
 
     start = time.monotonic()
+    last_liveness_probe = start - 1.0
     while time.monotonic() - start < timeout_s:
+        should_probe_liveness = False
+        ready_if_no_modal = False
+
         try:
             state_resp = await editor_state.get_editor_state(ctx)
             state = state_resp.model_dump() if hasattr(state_resp, "model_dump") else state_resp
+
+            if isinstance(state, dict) and state.get("success") is False:
+                reason = (state.get("data") or {}).get("reason")
+                if reason in _WAITING_WONT_HELP_REASONS:
+                    return (False, time.monotonic() - start, state)
+                should_probe_liveness = True
+
             data = (state or {}).get("data") if isinstance(state, dict) else None
             advice = (data or {}).get("advice") if isinstance(data, dict) else None
             if isinstance(advice, dict):
                 if advice.get("ready_for_tools") is True:
-                    return (True, time.monotonic() - start)
+                    return (True, time.monotonic() - start, None)
+
                 blocking = set(advice.get("blocking_reasons") or [])
-                if not (blocking & _REAL_BLOCKING_REASONS):
-                    return (True, time.monotonic() - start)
+                should_probe_liveness = True
+                # Preserve the prior behavior for unknown, non-blocking status reasons, but only
+                # after checking the independent transport path for a modal that the state tool
+                # itself cannot query while the main thread is stalled.
+                ready_if_no_modal = not bool(blocking & _REAL_BLOCKING_REASONS)
         except Exception:
-            pass  # not ready yet — keep polling
+            # Connection errors can be a consequence of the main thread no longer pumping.
+            should_probe_liveness = True
+
+        now = time.monotonic()
+        if should_probe_liveness and now - last_liveness_probe >= 1.0:
+            last_liveness_probe = now
+            blocked = await _probe_blocking_modal(ctx, require_detection=ready_if_no_modal)
+            if blocked is not None:
+                return (False, time.monotonic() - start, blocked)
+            if ready_if_no_modal:
+                return (True, time.monotonic() - start, None)
+
         await asyncio.sleep(0.25)
 
-    return (False, time.monotonic() - start)
+    return (False, time.monotonic() - start, None)
 
 
 def is_reloading_rejection(resp: Any) -> bool:
@@ -181,6 +312,8 @@ async def refresh_unity(
                        "Whether to request compilation"] = "none",
     wait_for_ready: Annotated[bool,
                               "If true, wait until mcpforunity://editor/state reports data.advice.ready_for_tools true"] = True,
+    on_external_scene_change: Annotated[Literal["auto", "reload", "keep_editor"],
+                                        "When an open scene changed on disk: auto reloads only if nothing is lost, reload takes the disk version, keep_editor overwrites it"] = "auto",
 ) -> MCPResponse | dict[str, Any]:
     unity_instance = await get_unity_instance_from_context(ctx)
 
@@ -189,6 +322,7 @@ async def refresh_unity(
         "scope": scope,
         "compile": compile,
         "wait_for_ready": bool(wait_for_ready),
+        "on_external_scene_change": on_external_scene_change,
     }
 
     recovered_from_disconnect = False
@@ -244,7 +378,14 @@ async def refresh_unity(
     # poll the canonical editor_state resource until ready or timeout.
     ready_confirmed = False
     if wait_for_ready:
-        ready_confirmed, _ = await wait_for_editor_ready(ctx, timeout_s=60.0)
+        ready_confirmed, waited_s, blocked = await wait_for_editor_ready(ctx, timeout_s=60.0)
+
+        # A blocking state that waiting cannot clear (a modal dialog) is reported as itself, with
+        # whatever action clears it, rather than as an anonymous 60s timeout.
+        if blocked is not None:
+            logger.warning(
+                "refresh_unity: editor blocked after %.1fs: %s", waited_s, blocked.get("error"))
+            return MCPResponse(**blocked)
 
         # If we timed out without confirming readiness, log and return failure
         if not ready_confirmed:

@@ -54,8 +54,16 @@ jobs:
         run: uv sync
 
       - name: Drift check
+        id: drift_check
         working-directory: Server
         run: uv run python ../tools/generate_docs_reference.py --check
+
+      - name: Show generated documentation diff
+        if: steps.drift_check.outcome == 'failure'
+        working-directory: Server
+        run: |
+          uv run python ../tools/generate_docs_reference.py
+          git -C .. diff -- website/docs/reference/tools
 
       - name: Tool-count sanity
         run: |

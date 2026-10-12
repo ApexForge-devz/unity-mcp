@@ -282,13 +282,13 @@ namespace MCPForUnity.Editor.Tools
         /// <param name="params">Command parameters</param>
         /// <param name="tcs">TaskCompletionSource to complete when async operation finishes</param>
         /// <returns>The result for synchronous commands, or null for async commands (TCS will be completed later)</returns>
-        public static object ExecuteCommand(string commandName, JObject @params, TaskCompletionSource<string> tcs)
+        public static object ExecuteCommand(string commandName, JObject @params, TaskCompletionSource<string> tcs, Action executionCompleted = null)
         {
             var handlerInfo = GetHandlerInfo(commandName);
 
             if (handlerInfo.IsAsync)
             {
-                ExecuteAsyncHandler(handlerInfo, @params, commandName, tcs);
+                ExecuteAsyncHandler(handlerInfo, @params, commandName, tcs, executionCompleted);
                 return null;
             }
 
@@ -307,7 +307,8 @@ namespace MCPForUnity.Editor.Tools
                     new HandlerInfo(commandName, null, _ => returnedTask),
                     @params,
                     commandName,
-                    tcs);
+                    tcs,
+                    executionCompleted);
                 return null;
             }
 
@@ -405,28 +406,25 @@ namespace MCPForUnity.Editor.Tools
             HandlerInfo handlerInfo,
             JObject parameters,
             string commandName,
-            TaskCompletionSource<string> tcs)
+            TaskCompletionSource<string> tcs,
+            Action executionCompleted = null)
         {
             if (handlerInfo.AsyncHandler == null)
-            {
                 throw new InvalidOperationException($"Async handler for '{commandName}' is not configured correctly");
-            }
 
             Task<object> handlerTask;
-
-            try
-            {
-                handlerTask = handlerInfo.AsyncHandler(parameters);
-            }
+            try { handlerTask = handlerInfo.AsyncHandler(parameters); }
             catch (Exception ex)
             {
-                ReportAsyncFailure(commandName, tcs, ex);
+                try { ReportAsyncFailure(commandName, tcs, ex); }
+                finally { NotifyExecutionCompleted(executionCompleted); }
                 return;
             }
 
             if (handlerTask == null)
             {
-                CompleteAsyncCommand(commandName, tcs, null);
+                try { CompleteAsyncCommand(commandName, tcs, null); }
+                finally { NotifyExecutionCompleted(executionCompleted); }
                 return;
             }
 
@@ -437,13 +435,22 @@ namespace MCPForUnity.Editor.Tools
                     var finalResult = await handlerTask.ConfigureAwait(true);
                     CompleteAsyncCommand(commandName, tcs, finalResult);
                 }
-                catch (Exception ex)
+                catch (Exception ex) { ReportAsyncFailure(commandName, tcs, ex); }
+                finally
                 {
-                    ReportAsyncFailure(commandName, tcs, ex);
+                    // Caller cancellation doesn't necessarily stop the operation. Release the
+                    // dispatcher only after the handler itself completes.
+                    NotifyExecutionCompleted(executionCompleted);
                 }
             }
-
             AwaitHandler();
+        }
+
+        private static void NotifyExecutionCompleted(Action callback)
+        {
+            if (callback == null) return;
+            try { callback(); }
+            catch (Exception ex) { McpLog.Warn($"Async command completion callback failed: {ex.Message}"); }
         }
 
         /// <summary>

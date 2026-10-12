@@ -1,7 +1,7 @@
 ---
 title: manage_tools
 sidebar_label: manage_tools
-description: "Manage which tool groups are visible in this session."
+description: "List or manage session-visible tool groups."
 ---
 
 # `manage_tools`
@@ -12,14 +12,15 @@ description: "Manage which tool groups are visible in this session."
 
 ## Description
 
-Manage which tool groups are visible in this session. Actions: list_groups (show all groups and their status), activate (enable a group), deactivate (disable a group), sync (refresh visibility from Unity Editor's toggle states), reset (restore defaults). Activating a group makes its tools appear; deactivating hides them. Use sync after toggling tools in the Unity Editor GUI.
+List or manage session-visible tool groups. Plan the task first, then use groups=[...] to activate or deactivate several optional groups in one call. Core is available directly. Use sync only after changing the Unity Editor tool toggles.
 
 ## Parameters
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `action` | `Literal['list_groups', 'activate', 'deactivate', 'sync', 'reset']` | yes | Action to perform. |
-| `group` | `str \| None` | — | Group name (required for activate / deactivate). Valid groups: animation, asset_gen, core, docs, probuilder, profiling, scripting_ext, testing, ui, vfx |
+| `group` | `str \| None` | — | One group for activate/deactivate. Use groups for batches. |
+| `groups` | `list[str] \| None` | — | Multiple group names to activate/deactivate in one call. Use either group or groups, not both. |
 
 ## Returns
 

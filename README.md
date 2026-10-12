@@ -41,7 +41,7 @@ Full history: [Release Notes](https://coplaydev.github.io/unity-mcp/releases).
 
 ## What it does
 
-Control the Unity Editor in natural language from any MCP client — create scenes & GameObjects, edit C# scripts, manage assets, run tests, profile, and build. 50 focused MCP tool entrypoints, any client, free & MIT.
+Control the Unity Editor in natural language from any MCP client — create scenes & GameObjects, edit C# scripts, manage assets, run tests, profile, and build. Core-first MCP tools with optional capability groups, any client, free & MIT.
 
 **[Browse the full tool catalog →](https://coplaydev.github.io/unity-mcp/reference/tools/)**
 
@@ -49,10 +49,10 @@ Control the Unity Editor in natural language from any MCP client — create scen
 
 ## Quickstart
 
-**Requirements:** Unity **2021.3 LTS → 6.x** · Python **3.10+** (via [`uv`](https://docs.astral.sh/uv/)). Works with **any MCP client** — Claude Desktop & Code, Cursor, VS Code, Windsurf, Cline, Gemini CLI, and more.
+**Requirements:** Unity **6.0+** · Python **3.10+** (via [`uv`](https://docs.astral.sh/uv/)). Works with **any MCP client** — Claude Desktop & Code, Cursor, VS Code, Windsurf, Cline, Gemini CLI, and more.
 
 1. **Install** — Unity → Package Manager → Add from git URL:
-   `https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main` &nbsp;_(pin `#v10.0.0` for this release, or `openupm add com.coplaydev.unity-mcp`)_
+   `https://github.com/ApexForge-devz/unity-mcp.git?path=/MCPForUnity#feature/unity6-enhancements` &nbsp;_(pin `#v10.0.0` for this release, or `openupm add com.coplaydev.unity-mcp`)_
 2. **Configure** — `Window → MCP for Unity → Configure All Detected Clients`.
 3. **Prompt** — *"Create a cube at the origin and add a Rigidbody."* The cube appears in seconds.
 

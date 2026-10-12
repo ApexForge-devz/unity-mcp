@@ -116,13 +116,52 @@ def get_registered_tools() -> list[dict[str, Any]]:
 
 
 def get_group_tool_names() -> dict[str, list[str]]:
-    """Return a mapping of group name -> list of tool names in that group."""
+    """Return a stable mapping of group name -> sorted tool names."""
     result: dict[str, list[str]] = {g: [] for g in TOOL_GROUPS}
     for tool in _tool_registry:
         g = tool.get("group")
         if g and g in result:
             result[g].append(tool["name"])
+    for names in result.values():
+        names.sort()
     return result
+
+
+def _compact_tool_summary(description: str | None, max_chars: int = 84) -> str:
+    """Return a short first-sentence summary for the connection-time catalog."""
+    if not isinstance(description, str):
+        return ""
+    normalized = " ".join(description.split())
+    if not normalized:
+        return ""
+    summary = normalized.split(". ", 1)[0].rstrip(".")
+    if len(summary) > max_chars:
+        summary = summary[: max_chars - 1].rstrip() + "…"
+    return summary
+
+
+def get_optional_group_catalog() -> str:
+    """Build a compact catalog of registered non-Core groups for server instructions."""
+    grouped: dict[str, list[dict[str, Any]]] = {
+        group: [] for group in TOOL_GROUPS if group not in DEFAULT_ENABLED_GROUPS
+    }
+    for tool in _tool_registry:
+        group = tool.get("group")
+        if group in grouped:
+            grouped[group].append(tool)
+
+    lines: list[str] = []
+    for group in sorted(grouped):
+        tools = sorted(grouped[group], key=lambda item: item["name"])
+        if not tools:
+            continue
+        entries = []
+        for tool in tools:
+            name = f"`{tool['name']}`"
+            summary = _compact_tool_summary(tool.get("description"))
+            entries.append(f"{name} — {summary}" if summary else name)
+        lines.append(f"- `{group}` — {TOOL_GROUPS[group]}: " + "; ".join(entries))
+    return "\n".join(lines)
 
 
 def clear_tool_registry():

@@ -16,9 +16,17 @@ logger = logging.getLogger("mcp-for-unity-server")
 # Export decorator and helpers for easy imports within tools
 __all__ = [
     "register_all_tools",
+    "discover_tool_registry",
     "sync_tool_visibility_from_unity",
     "get_unity_instance_from_context",
 ]
+
+
+def discover_tool_registry() -> list[dict]:
+    """Import tool modules and return registered metadata without creating an MCP server."""
+    tools_dir = Path(__file__).parent
+    list(discover_modules(tools_dir, __package__))
+    return get_registered_tools()
 
 
 def register_all_tools(mcp: FastMCP, *, project_scoped_tools: bool = True):
@@ -33,13 +41,17 @@ def register_all_tools(mcp: FastMCP, *, project_scoped_tools: bool = True):
     Clients can activate additional groups at any time via ``manage_tools``.
     """
     logger.info("Auto-discovering MCP for Unity Server tools...")
-    # Dynamic import of all modules in this directory
-    tools_dir = Path(__file__).parent
-
-    # Discover and import all modules
-    list(discover_modules(tools_dir, __package__))
-
-    tools = get_registered_tools()
+    tools = discover_tool_registry()
+    # Stable ordering reduces avoidable tool-list churn between connections.
+    tools = sorted(
+        tools,
+        key=lambda item: (
+            0 if item.get("group") == "core" else
+            1 if item.get("group") is None else 2,
+            item.get("group") or "",
+            item["name"],
+        ),
+    )
 
     if not tools:
         logger.warning("No MCP tools registered!")
@@ -68,30 +80,21 @@ def register_all_tools(mcp: FastMCP, *, project_scoped_tools: bool = True):
 
     logger.info(f"Registered {len(tools)} MCP tools")
 
-    # In HTTP mode, disable non-default groups at the server level so new
-    # sessions start lean.  Unity will re-enable groups via register_tools
-    # (PluginHub._sync_server_tool_visibility) once it connects.
-    # In stdio mode we skip this: the legacy TCP bridge has no register_tools
-    # message, so disabled groups would stay invisible for the entire session.
+    # Hide optional groups for every transport so clients start with Core schemas
+    # plus the compact catalog in server instructions. Session-level manage_tools
+    # activation can reveal groups on demand. Unity's server-level toggle sync may
+    # later override these defaults for groups explicitly enabled in the Editor.
     # Tools with group=None (no tag) are unaffected and always visible.
-    from core.config import config as server_config
-
-    if (server_config.transport_mode or "stdio").lower() == "http":
-        groups_to_disable = set(TOOL_GROUPS.keys()) - DEFAULT_ENABLED_GROUPS
-        for group_name in sorted(groups_to_disable):
-            tag = f"group:{group_name}"
-            mcp.disable(tags={tag}, components={"tool"})
-            logger.debug(f"Disabled tool group at startup: {group_name}")
-        logger.info(
-            f"Default tool groups: {', '.join(sorted(DEFAULT_ENABLED_GROUPS))}. "
-            f"Disabled: {', '.join(sorted(groups_to_disable))}. "
-            "Use manage_tools to activate more."
-        )
-    else:
-        logger.info(
-            "Stdio transport: all tool groups enabled at startup. "
-            "Will sync with Unity's tool states after connecting."
-        )
+    groups_to_disable = set(TOOL_GROUPS.keys()) - DEFAULT_ENABLED_GROUPS
+    for group_name in sorted(groups_to_disable):
+        tag = f"group:{group_name}"
+        mcp.disable(tags={tag}, components={"tool"})
+        logger.debug(f"Disabled optional tool group at startup: {group_name}")
+    logger.info(
+        f"Default tool groups: {', '.join(sorted(DEFAULT_ENABLED_GROUPS))}. "
+        f"Disabled optional groups: {', '.join(sorted(groups_to_disable))}. "
+        "Use manage_tools to activate groups for this session."
+    )
 
 
 async def sync_tool_visibility_from_unity(

@@ -1,5 +1,16 @@
 # MCP for Unity Server
 
+## Tool discovery and schema efficiency
+
+Core tools are listed directly. Optional groups are summarized in the connection instructions and should be enabled together with `manage_tools(action="activate", groups=[...])` after planning the task.
+
+The `tools/list` response compacts long tool and parameter descriptions without changing schema structure, argument names, types, required fields, defaults, enums, or validation constraints. Call `get_tool_details(name="...")` to obtain the complete original definition when needed.
+
+- `UNITY_MCP_TOOL_SCHEMA_COMPACTION=0` disables description compaction.
+- `UNITY_MCP_DEREFERENCE_SCHEMAS=false` preserves JSON Schema references instead of expanding them. Use only with clients that support `$ref`; the default preserves broad compatibility.
+- Run `uv run python src/benchmark_tool_schema_optimization.py` from this directory to compare serialized original and compact schema sizes.
+
+
 [![MCP](https://badge.mcpx.dev?status=on 'MCP Enabled')](https://modelcontextprotocol.io/introduction)
 [![python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-red.svg 'MIT License')](https://opensource.org/licenses/MIT)

@@ -1,6 +1,6 @@
 import pytest
 
-from services.registry import get_registered_tools, mcp_for_unity_tool
+from services.registry import get_optional_group_catalog, get_registered_tools, mcp_for_unity_tool
 import services.registry.tool_registry as tool_registry_module
 
 
@@ -62,3 +62,27 @@ def test_tool_registry_rejects_invalid_unity_target_values():
         @mcp_for_unity_tool(unity_target=123)  # type: ignore[arg-type]
         def _invalid_non_string_target_tool():
             return None
+
+
+def test_optional_group_catalog_is_generated_from_registered_optional_tools():
+    @mcp_for_unity_tool(
+        group="vfx",
+        description=(
+            "Create procedural textures for Unity. This longer follow-up detail "
+            "should not be copied into the compact connection catalog."
+        ),
+    )
+    def _catalog_texture_operation():
+        return None
+
+    @mcp_for_unity_tool(group="core", description="Core catalog item.")
+    def _catalog_core_operation():
+        return None
+
+    catalog = get_optional_group_catalog()
+
+    assert "`vfx`" in catalog
+    assert "`_catalog_texture_operation`" in catalog
+    assert "Create procedural textures for Unity" in catalog
+    assert "longer follow-up detail" not in catalog
+    assert not any(line.startswith("- `core`") for line in catalog.splitlines())

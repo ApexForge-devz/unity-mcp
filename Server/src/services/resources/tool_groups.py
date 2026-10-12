@@ -12,6 +12,7 @@ from services.registry import (
     TOOL_GROUPS,
     DEFAULT_ENABLED_GROUPS,
     get_group_tool_names,
+    get_optional_group_catalog,
 )
 
 
@@ -40,5 +41,10 @@ async def get_tool_groups(ctx: Context) -> dict[str, Any]:
         "groups": groups,
         "total_groups": len(groups),
         "default_enabled": sorted(DEFAULT_ENABLED_GROUPS),
-        "usage": "Call manage_tools(action='activate', group='<name>') to enable a group.",
+        "catalog": get_optional_group_catalog(),
+        "usage": (
+            "Activate several optional groups together with "
+            "manage_tools(action='activate', groups=['group_a', 'group_b']). "
+            "Core tools are already available."
+        ),
     }

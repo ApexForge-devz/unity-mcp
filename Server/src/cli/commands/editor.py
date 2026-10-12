@@ -17,6 +17,42 @@ def editor():
     pass
 
 
+@editor.command("windows")
+@handle_unity_errors
+def windows():
+    """List open Editor windows, including inactive docked tabs."""
+    config = get_config()
+    result = run_command("manage_editor_windows", {"action": "list"}, config)
+    click.echo(format_output(result, config.format))
+
+
+@editor.command("screenshot")
+@click.option("--window-id", type=int, help="Current ID from editor windows.")
+@click.option("--window-title", help="Exact title (case-insensitive).")
+@click.option("--window-type", help="Exact short or full C# type name.")
+@click.option("--focus/--no-focus", default=True, help="Select the target tab before capture.")
+@click.option("--restore-focus/--no-restore-focus", default=True, help="Restore the previous tab and focus.")
+@handle_unity_errors
+def screenshot(window_id: Optional[int], window_title: Optional[str], window_type: Optional[str],
+               focus: bool, restore_focus: bool):
+    """Save a full-size PNG in the project's Library/McpEditorScreenshots.
+
+    Use one selector; without one, capture the window with keyboard focus.
+    Screenshots can contain private Editor data. Requires a graphical Editor.
+    """
+    selectors = {key: value for key, value in {
+        "window_id": window_id, "window_title": window_title, "window_type": window_type,
+    }.items() if value is not None and (not isinstance(value, str) or value.strip())}
+    if len(selectors) > 1:
+        raise click.UsageError("Use only one window selector.")
+    config = get_config()
+    result = run_command("manage_editor_windows", {
+        "action": "screenshot", **selectors, "focus": focus, "restore_focus": restore_focus,
+        "include_image": False, "save_file": True,
+    }, config)
+    click.echo(format_output(result, config.format))
+
+
 @editor.command("play")
 @handle_unity_errors
 def play():
@@ -48,6 +84,35 @@ def stop():
     click.echo(format_output(result, config.format))
     if result.get("success"):
         print_success("Stopped play mode")
+
+
+@editor.command("game-view-size")
+@click.option("--width", type=click.IntRange(10, 8192), default=None,
+              help="Fixed width in pixels. Supply with --height to set the size.")
+@click.option("--height", type=click.IntRange(10, 8192), default=None,
+              help="Fixed height in pixels. Supply with --width to set the size.")
+@handle_unity_errors
+def game_view_size(width: Optional[int], height: Optional[int]):
+    """Read or set the open Game View's fixed render resolution.
+
+    Requires a focused Game View, or exactly one open Game View. Make it visible
+    before setting dimensions so Unity can repaint and verify its render target. Reuses one
+    MCP-owned preset per platform group in shared Editor preferences; other
+    presets and focus stay intact. Actual size can be limited by the GPU.
+
+    \b
+    Examples:
+        unity-mcp editor game-view-size
+        unity-mcp editor game-view-size --width 2400 --height 1080
+    """
+    if (width is None) != (height is None):
+        raise click.UsageError("Supply both --width and --height, or neither to read the size.")
+    config = get_config()
+    params: dict[str, Any] = {"action": "get_game_view_size"}
+    if width is not None:
+        params.update(action="set_game_view_size", width=width, height=height)
+    result = run_command("manage_editor", params, config)
+    click.echo(format_output(result, config.format))
 
 
 @editor.command("console")
@@ -526,3 +591,77 @@ def custom_tool(tool_name: str, params: str):
                     print_info(f'Example: unity-mcp editor custom-tool "{matches[0]}"')
             except UnityConnectionError:
                 pass
+
+
+@editor.command("dialog")
+@click.option("--answer", "-a", default=None, help="Press this button (exact label) to unblock the Editor.")
+@click.option("--expect-title", default=None, help="Refuse the press unless this dialog is the one open.")
+@handle_unity_errors
+def dialog(answer: Optional[str], expect_title: Optional[str]):
+    """Read or answer a modal dialog blocking the Editor.
+
+    \b
+    Examples:
+        unity-mcp editor dialog
+        unity-mcp editor dialog --answer Reload
+        unity-mcp editor dialog --answer Ignore --expect-title "Scene(s) Have Been Modified"
+    """
+    config = get_config()
+
+    def unwrap(payload):
+        """Tool responses arrive wrapped in the transport's {status, result} envelope."""
+        if isinstance(payload, dict) and "success" not in payload and isinstance(payload.get("result"), dict):
+            return payload["result"]
+        return payload if isinstance(payload, dict) else {}
+
+    if answer is None:
+        result = unwrap(run_command("liveness", {}, config))
+        click.echo(format_output(result, config.format))
+
+        if result.get("success") is False:
+            print_error(result.get("error") or "Failed to query Unity liveness.")
+            sys.exit(1)
+
+        data = result.get("data")
+        modal = data.get("modal") if isinstance(data, dict) else None
+        if not isinstance(modal, dict) or "blocked" not in modal:
+            print_error("Unity did not return modal-detection state; cannot confirm that no dialog is open.")
+            sys.exit(1)
+
+        sample_age_ms = data.get("sample_age_ms")
+        if (modal.get("supported")
+                and isinstance(sample_age_ms, (int, float))
+                and sample_age_ms > 5000):
+            print_error(f"Unity's modal liveness snapshot is stale ({sample_age_ms} ms); retry.")
+            sys.exit(1)
+
+        if not modal.get("supported"):
+            stall_ms = data.get("main_thread_stall_ms")
+            print_info(
+                "Modal-dialog identification is unavailable on this platform. "
+                "Inspect the Unity Editor manually if commands are stalled."
+            )
+            if stall_ms is not None:
+                print_info(f"Main-thread stall: {stall_ms} ms")
+            return
+
+        if not modal.get("blocked"):
+            print_info("No modal dialog is currently open in the Unity Editor.")
+            return
+
+        print_info(f"Dialog: {modal.get('title') or '(untitled dialog)'}")
+        if modal.get("body"):
+            print_info(f"  {modal.get('body')}")
+        print_info(f"  Buttons: {', '.join(modal.get('buttons') or [])}")
+        return
+
+    params: dict[str, Any] = {"button": answer}
+    if expect_title:
+        params["expect_title"] = expect_title
+    result = unwrap(run_command("answer_dialog", params, config))
+    click.echo(format_output(result, config.format))
+    if result.get("success"):
+        print_success(f"Answered dialog with '{answer}'")
+    else:
+        print_error(result.get("error") or "Failed to answer dialog")
+        sys.exit(1)

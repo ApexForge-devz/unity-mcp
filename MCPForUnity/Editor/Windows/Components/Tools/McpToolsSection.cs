@@ -12,6 +12,7 @@ using MCPForUnity.Editor.Tools;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
+using Newtonsoft.Json.Linq;
 
 namespace MCPForUnity.Editor.Windows.Components.Tools
 {
@@ -30,8 +31,14 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
         private Button disableAllButton;
         private Button rescanButton;
         private Button reconfigureButton;
+        private Button expandAllButton;
+        private Button collapseAllButton;
+        private ToolbarSearchField toolSearchField;
+        private Toggle enabledOnlyToggle;
+        private Label filterEmptyLabel;
         private VisualElement categoryContainer;
         private List<ToolMetadata> allTools = new();
+        private readonly Dictionary<string, VisualElement> toolRowMap = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Toggle> groupToggleMap = new();
         private readonly List<(Foldout foldout, string title, List<ToolMetadata> tools)> foldoutEntries = new();
 
@@ -39,6 +46,7 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
         private static readonly Dictionary<string, string> GroupDisplayNames = new(StringComparer.OrdinalIgnoreCase)
         {
             { "core", "Core Tools" },
+            { "docs", "Unity API Documentation" },
             { "vfx", "VFX & Shaders" },
             { "animation", "Animation" },
             { "ui", "UI Toolkit" },
@@ -67,11 +75,37 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
             disableAllButton = Root.Q<Button>("disable-all-button");
             rescanButton = Root.Q<Button>("rescan-button");
             reconfigureButton = Root.Q<Button>("reconfigure-button");
+            expandAllButton = Root.Q<Button>("expand-all-button");
+            collapseAllButton = Root.Q<Button>("collapse-all-button");
+            toolSearchField = Root.Q<ToolbarSearchField>("tool-search-field");
+            enabledOnlyToggle = Root.Q<Toggle>("enabled-only-toggle");
             categoryContainer = Root.Q<VisualElement>("tool-category-container");
         }
 
         private void RegisterCallbacks()
         {
+            if (toolSearchField != null)
+            {
+                toolSearchField.tooltip = "Search tool names, descriptions, groups, and parameters.";
+                toolSearchField.RegisterValueChangedCallback(_ => ApplyFilters());
+            }
+
+            if (enabledOnlyToggle != null)
+            {
+                enabledOnlyToggle.tooltip = "Show only tools currently enabled for registration.";
+                enabledOnlyToggle.RegisterValueChangedCallback(_ => ApplyFilters());
+            }
+
+            if (expandAllButton != null)
+            {
+                expandAllButton.clicked += () => SetAllFoldoutsExpanded(true);
+            }
+
+            if (collapseAllButton != null)
+            {
+                collapseAllButton.clicked += () => SetAllFoldoutsExpanded(false);
+            }
+
             if (projectScopedToolsToggle != null)
             {
                 projectScopedToolsToggle.value = EditorPrefs.GetBool(
@@ -128,6 +162,8 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
             toolToggleMap.Clear();
             groupToggleMap.Clear();
             foldoutEntries.Clear();
+            toolRowMap.Clear();
+            filterEmptyLabel = null;
             categoryContainer?.Clear();
 
             var service = MCPServiceLocator.ToolDiscovery;
@@ -185,7 +221,7 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
                 BuildCategory("Custom Tools", "custom", customTools);
             }
 
-            UpdateSummary();
+            ApplyFilters();
         }
 
         private static string GetGroupDisplayName(string group)
@@ -244,7 +280,9 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
 
             foreach (var tool in toolList)
             {
-                foldout.Add(CreateToolRow(tool));
+                var row = CreateToolRow(tool);
+                foldout.Add(row);
+                toolRowMap[tool.Name] = row;
             }
 
             if (isExperimental)
@@ -331,6 +369,16 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
                 row.Add(CreateBatchExecuteSettings());
             }
 
+            if (string.Equals(tool.Name, "manage_editor", StringComparison.OrdinalIgnoreCase))
+            {
+                row.Add(CreateGameViewSizeControls());
+            }
+
+            if (string.Equals(tool.Name, "manage_editor_windows", StringComparison.OrdinalIgnoreCase))
+            {
+                row.Add(CreateEditorWindowCaptureControls());
+            }
+
             return row;
         }
 
@@ -344,9 +392,9 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
 
             if (updateSummary)
             {
-                UpdateSummary();
                 UpdateFoldoutHeaders();
                 SyncGroupToggles();
+                ApplyFilters();
             }
 
             if (reregisterTools)
@@ -406,9 +454,9 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
                 hasChanges = true;
             }
 
-            UpdateSummary();
             UpdateFoldoutHeaders();
             SyncGroupToggles();
+            ApplyFilters();
 
             if (hasChanges)
             {
@@ -450,7 +498,7 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
             // Sync global group toggles after group change
             SyncGroupToggles();
 
-            UpdateSummary();
+            ApplyFilters();
 
             if (hasChanges)
             {
@@ -554,6 +602,100 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
             }
         }
 
+        private void SetAllFoldoutsExpanded(bool expanded)
+        {
+            foreach (var (foldout, _, _) in foldoutEntries)
+            {
+                foldout.value = expanded;
+            }
+        }
+
+        private bool MatchesToolFilter(ToolMetadata tool)
+        {
+            if (enabledOnlyToggle != null && enabledOnlyToggle.value
+                && !MCPServiceLocator.ToolDiscovery.IsToolEnabled(tool.Name))
+            {
+                return false;
+            }
+
+            string query = toolSearchField?.value?.Trim();
+            if (string.IsNullOrEmpty(query))
+            {
+                return true;
+            }
+
+            string parameters = tool.Parameters == null
+                ? string.Empty
+                : string.Join(" ", tool.Parameters.Select(parameter =>
+                    $"{parameter.Name} {parameter.Type} {parameter.Description}"));
+
+            string group = tool.Group ?? "core";
+            string searchable = string.Join(" ", new[]
+            {
+                tool.Name,
+                tool.Description,
+                group,
+                GetGroupDisplayName(group),
+                parameters
+            });
+
+            return searchable.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private void ApplyFilters()
+        {
+            if (categoryContainer == null)
+            {
+                UpdateSummary();
+                return;
+            }
+
+            string query = toolSearchField?.value?.Trim();
+            bool filterActive = !string.IsNullOrEmpty(query)
+                || (enabledOnlyToggle != null && enabledOnlyToggle.value);
+            int visibleCount = 0;
+
+            foreach (var tool in allTools)
+            {
+                bool matches = MatchesToolFilter(tool);
+                if (matches)
+                {
+                    visibleCount++;
+                }
+
+                if (toolRowMap.TryGetValue(tool.Name, out var row))
+                {
+                    row.style.display = matches ? DisplayStyle.Flex : DisplayStyle.None;
+                }
+            }
+
+            foreach (var (foldout, _, tools) in foldoutEntries)
+            {
+                bool hasMatches = tools.Any(MatchesToolFilter);
+                foldout.style.display = hasMatches ? DisplayStyle.Flex : DisplayStyle.None;
+                if (filterActive && hasMatches)
+                {
+                    foldout.SetValueWithoutNotify(true);
+                }
+            }
+
+            if (filterEmptyLabel == null)
+            {
+                filterEmptyLabel = new Label();
+                filterEmptyLabel.AddToClassList("help-text");
+                filterEmptyLabel.AddToClassList("tool-editor-status");
+                categoryContainer.Add(filterEmptyLabel);
+            }
+
+            filterEmptyLabel.text = filterActive
+                ? "No tools match the current search and filter."
+                : "No MCP tools were found.";
+            filterEmptyLabel.style.display = allTools.Count > 0 && visibleCount == 0
+                ? DisplayStyle.Flex : DisplayStyle.None;
+
+            UpdateSummary();
+        }
+
         private void UpdateSummary()
         {
             if (summaryLabel == null)
@@ -568,7 +710,17 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
             }
 
             int enabledCount = allTools.Count(tool => MCPServiceLocator.ToolDiscovery.IsToolEnabled(tool.Name));
-            summaryLabel.text = $"{enabledCount} of {allTools.Count} tools will register with connected clients.";
+            bool filterActive = !string.IsNullOrWhiteSpace(toolSearchField?.value)
+                || (enabledOnlyToggle != null && enabledOnlyToggle.value);
+            if (filterActive)
+            {
+                int visibleCount = allTools.Count(MatchesToolFilter);
+                summaryLabel.text = $"{enabledCount} of {allTools.Count} tools enabled; showing {visibleCount} matching tool(s).";
+            }
+            else
+            {
+                summaryLabel.text = $"{enabledCount} of {allTools.Count} tools will register with connected clients.";
+            }
         }
 
         private void UpdateFoldoutHeaders()
@@ -585,6 +737,337 @@ namespace MCPForUnity.Editor.Windows.Components.Tools
             var label = new Label(message);
             label.AddToClassList("help-text");
             categoryContainer?.Add(label);
+        }
+
+        private VisualElement CreateGameViewSizeControls()
+        {
+            const string preferenceKey = "MCPForUnity.ToolsSection.FixedGameViewFoldout";
+            var container = new VisualElement();
+            container.AddToClassList("tool-editor-controls");
+
+            var foldout = new Foldout
+            {
+                text = "Fixed Game View size",
+                value = EditorPrefs.GetBool(preferenceKey, false)
+            };
+            foldout.AddToClassList("tool-editor-control-foldout");
+            foldout.RegisterValueChangedCallback(evt => EditorPrefs.SetBool(preferenceKey, evt.newValue));
+            container.Add(foldout);
+
+            var inputRow = new VisualElement();
+            inputRow.AddToClassList("tool-editor-control-row");
+
+            var widthField = new IntegerField("Width") { value = 1920 };
+            widthField.AddToClassList("tool-editor-size-field");
+            widthField.tooltip = "Requested fixed Game View width in pixels (10–8192).";
+            var heightField = new IntegerField("Height") { value = 1080 };
+            heightField.AddToClassList("tool-editor-size-field");
+            heightField.tooltip = "Requested fixed Game View height in pixels (10–8192).";
+            inputRow.Add(widthField);
+            inputRow.Add(heightField);
+
+            var buttonRow = new VisualElement();
+            buttonRow.AddToClassList("tool-editor-control-row");
+
+            var readButton = new Button { text = "Read Current" };
+            readButton.AddToClassList("tool-editor-control-button");
+            var applyButton = new Button { text = "Apply Size" };
+            applyButton.AddToClassList("tool-editor-control-button");
+            var status = new Label("Read the current preset or enter a custom size.");
+            status.AddToClassList("tool-editor-status");
+
+            readButton.clicked += () => _ = ReadGameViewSizeAsync(widthField, heightField, status, readButton, applyButton);
+            applyButton.clicked += () => _ = ApplyGameViewSizeAsync(widthField, heightField, status, readButton, applyButton);
+
+            buttonRow.Add(readButton);
+            buttonRow.Add(applyButton);
+            foldout.Add(inputRow);
+            foldout.Add(buttonRow);
+            foldout.Add(status);
+            return container;
+        }
+
+        private async Task ReadGameViewSizeAsync(
+            IntegerField widthField, IntegerField heightField, Label status, Button readButton, Button applyButton)
+        {
+            readButton.SetEnabled(false);
+            applyButton.SetEnabled(false);
+            try
+            {
+                object result = await ResolveCommandResultAsync(
+                    ManageEditor.HandleCommand(new JObject { ["action"] = "get_game_view_size" }));
+
+                if (result is SuccessResponse success)
+                {
+                    var data = success.Data as JObject
+                        ?? (success.Data == null ? new JObject() : JObject.FromObject(success.Data));
+                    var selected = data["selected_size"] as JObject;
+                    if (selected != null)
+                    {
+                        widthField.SetValueWithoutNotify(selected["width"].Value<int>());
+                        heightField.SetValueWithoutNotify(selected["height"].Value<int>());
+                    }
+
+                    string preset = data["preset_name"]?.Value<string>() ?? "custom";
+                    string settled = data["settled"]?.Value<bool>() == true ? "settled" : "not settled";
+                    status.text = "Preset " + preset + "; target " + FormatSize(data["target_size"])
+                        + "; render target " + FormatSize(data["render_size"]) + " (" + settled + ").";
+                }
+                else if (result is ErrorResponse error)
+                {
+                    status.text = error.Error;
+                }
+                else
+                {
+                    status.text = "Unexpected response while reading Game View size.";
+                }
+            }
+            catch (Exception ex)
+            {
+                status.text = "Could not read Game View size: " + ex.Message;
+                McpLog.Warn(status.text);
+            }
+            finally
+            {
+                readButton.SetEnabled(true);
+                applyButton.SetEnabled(true);
+            }
+        }
+
+        private async Task ApplyGameViewSizeAsync(
+            IntegerField widthField, IntegerField heightField, Label status, Button readButton, Button applyButton)
+        {
+            int width = widthField.value;
+            int height = heightField.value;
+            if (width < GameViewSizeControl.MinDimension || width > GameViewSizeControl.MaxDimension
+                || height < GameViewSizeControl.MinDimension || height > GameViewSizeControl.MaxDimension)
+            {
+                status.text = $"Width and height must be between {GameViewSizeControl.MinDimension} and {GameViewSizeControl.MaxDimension} pixels.";
+                return;
+            }
+
+            readButton.SetEnabled(false);
+            applyButton.SetEnabled(false);
+            status.text = "Applying fixed Game View size…";
+            try
+            {
+                object result = await ResolveCommandResultAsync(ManageEditor.HandleCommand(new JObject
+                {
+                    ["action"] = "set_game_view_size",
+                    ["width"] = width,
+                    ["height"] = height
+                }));
+
+                if (result is SuccessResponse success)
+                {
+                    var data = success.Data as JObject;
+                    string settled = data?["settled"]?.Value<bool>() == true ? "settled" : "waiting for render target";
+                    status.text = success.Message + " " + width + "×" + height + " requested; " + settled + ".";
+                    McpLog.Info(status.text);
+                }
+                else if (result is ErrorResponse error)
+                {
+                    status.text = error.Error;
+                }
+                else
+                {
+                    status.text = "Unexpected response while applying Game View size.";
+                }
+            }
+            catch (Exception ex)
+            {
+                status.text = "Could not apply Game View size: " + ex.Message;
+                McpLog.Error(status.text);
+            }
+            finally
+            {
+                readButton.SetEnabled(true);
+                applyButton.SetEnabled(true);
+            }
+        }
+
+        private VisualElement CreateEditorWindowCaptureControls()
+        {
+            const string preferenceKey = "MCPForUnity.ToolsSection.EditorWindowCaptureFoldout";
+            var container = new VisualElement();
+            container.AddToClassList("tool-editor-controls");
+
+            var foldout = new Foldout
+            {
+                text = "Editor window screenshot",
+                value = EditorPrefs.GetBool(preferenceKey, false)
+            };
+            foldout.AddToClassList("tool-editor-control-foldout");
+            foldout.RegisterValueChangedCallback(evt => EditorPrefs.SetBool(preferenceKey, evt.newValue));
+            container.Add(foldout);
+
+            var idsByChoice = new Dictionary<string, int>();
+            var selectionRow = new VisualElement();
+            selectionRow.AddToClassList("tool-editor-control-row");
+
+            var choices = new List<string> { "Refresh to discover windows" };
+            var selector = new DropdownField("Target", choices, 0);
+            selector.style.flexGrow = 1;
+            selector.style.minWidth = 180;
+            selectionRow.Add(selector);
+
+            var buttonRow = new VisualElement();
+            buttonRow.AddToClassList("tool-editor-control-row");
+
+            var refreshButton = new Button { text = "Refresh Windows" };
+            refreshButton.AddToClassList("tool-editor-control-button");
+            var captureButton = new Button { text = "Capture PNG" };
+            captureButton.AddToClassList("tool-editor-control-button");
+            captureButton.SetEnabled(false);
+            var status = new Label("Choose an Editor window; capture saves a PNG under Library/McpEditorScreenshots.");
+            status.AddToClassList("tool-editor-status");
+
+            selector.RegisterValueChangedCallback(_ =>
+                captureButton.SetEnabled(idsByChoice.ContainsKey(selector.value)));
+            refreshButton.clicked += () => _ = RefreshEditorWindowChoicesAsync(selector, idsByChoice, status, refreshButton, captureButton);
+            captureButton.clicked += () => _ = CaptureEditorWindowAsync(selector, idsByChoice, status, refreshButton, captureButton);
+
+            buttonRow.Add(refreshButton);
+            buttonRow.Add(captureButton);
+            foldout.Add(selectionRow);
+            foldout.Add(buttonRow);
+            foldout.Add(status);
+            return container;
+        }
+
+        private static async Task RefreshEditorWindowChoicesAsync(
+            DropdownField selector, Dictionary<string, int> idsByChoice, Label status, Button refreshButton, Button captureButton)
+        {
+            refreshButton.SetEnabled(false);
+            captureButton.SetEnabled(false);
+            try
+            {
+                object result = await ResolveCommandResultAsync(
+                    ManageEditorWindows.HandleCommand(new JObject { ["action"] = "list" }));
+                if (!(result is SuccessResponse success))
+                {
+                    status.text = result is ErrorResponse error ? error.Error : "Could not list Editor windows.";
+                    return;
+                }
+
+                var data = success.Data as JObject
+                    ?? (success.Data == null ? new JObject() : JObject.FromObject(success.Data));
+                var windows = data["windows"] as JArray;
+                var choices = new List<string>();
+                idsByChoice.Clear();
+
+                if (windows != null)
+                {
+                    foreach (var token in windows.OfType<JObject>())
+                    {
+                        int? id = token["window_id"]?.Value<int?>();
+                        string title = token["title"]?.Value<string>();
+                        if (!id.HasValue || string.IsNullOrWhiteSpace(title)) continue;
+
+                        string choice = title + " (ID " + id.Value + ")";
+                        choices.Add(choice);
+                        idsByChoice[choice] = id.Value;
+                    }
+                }
+
+                if (choices.Count == 0)
+                {
+                    choices.Add("No eligible windows found");
+                }
+
+                selector.choices = choices;
+                selector.SetValueWithoutNotify(choices[0]);
+                captureButton.SetEnabled(idsByChoice.ContainsKey(selector.value));
+                status.text = "Found " + idsByChoice.Count + " eligible Editor window(s). Captures are saved to Library/McpEditorScreenshots.";
+            }
+            catch (Exception ex)
+            {
+                status.text = "Could not list Editor windows: " + ex.Message;
+                McpLog.Warn(status.text);
+            }
+            finally
+            {
+                refreshButton.SetEnabled(true);
+                captureButton.SetEnabled(idsByChoice.ContainsKey(selector.value));
+            }
+        }
+
+        private static async Task CaptureEditorWindowAsync(
+            DropdownField selector, Dictionary<string, int> idsByChoice, Label status, Button refreshButton, Button captureButton)
+        {
+            if (!idsByChoice.TryGetValue(selector.value, out int windowId))
+            {
+                status.text = "Select an Editor window first.";
+                return;
+            }
+
+            refreshButton.SetEnabled(false);
+            captureButton.SetEnabled(false);
+            status.text = "Capturing Editor window…";
+            try
+            {
+                object result = await ResolveCommandResultAsync(ManageEditorWindows.HandleCommand(new JObject
+                {
+                    ["action"] = "screenshot",
+                    ["window_id"] = windowId,
+                    ["focus"] = true,
+                    ["restore_focus"] = true,
+                    ["include_image"] = false,
+                    ["save_file"] = true
+                }));
+
+                if (result is SuccessResponse success)
+                {
+                    var data = success.Data as JObject
+                        ?? (success.Data == null ? new JObject() : JObject.FromObject(success.Data));
+                    var window = data["window"] as JObject;
+                    string title = window?["title"]?.Value<string>() ?? selector.value;
+                    string path = data["path"]?.Value<string>() ?? "Library/McpEditorScreenshots";
+                    status.text = "Saved screenshot of " + title + ": " + path;
+                    McpLog.Info(status.text);
+                }
+                else if (result is ErrorResponse error)
+                {
+                    status.text = error.Error;
+                }
+                else
+                {
+                    status.text = "Unexpected response while capturing the Editor window.";
+                }
+            }
+            catch (Exception ex)
+            {
+                status.text = "Could not capture Editor window: " + ex.Message;
+                McpLog.Error(status.text);
+            }
+            finally
+            {
+                refreshButton.SetEnabled(true);
+                captureButton.SetEnabled(idsByChoice.ContainsKey(selector.value));
+            }
+        }
+
+        private static async Task<object> ResolveCommandResultAsync(object result)
+        {
+            if (result is Task<object> pending)
+            {
+                return await pending;
+            }
+
+            return result;
+        }
+
+        private static string FormatSize(JToken value)
+        {
+            if (!(value is JObject dimensions)
+                || dimensions["width"] == null || dimensions["height"] == null)
+            {
+                return "n/a";
+            }
+
+            int width = dimensions["width"].Value<int>();
+            int height = dimensions["height"].Value<int>();
+            return width + "×" + height;
         }
 
         private VisualElement CreateManageSceneActions()

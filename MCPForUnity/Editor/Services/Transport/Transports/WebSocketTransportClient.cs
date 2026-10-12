@@ -47,6 +47,12 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
         private Task _keepAliveTask;
         private readonly SemaphoreSlim _sendLock = new(1, 1);
 
+        private const int MaxQueuedExecuteMessages = 32;
+        private readonly object _ordinaryMessageQueueLock = new();
+        private readonly Queue<string> _ordinaryMessageQueue = new();
+        private readonly SemaphoreSlim _ordinaryMessageSignal = new(0);
+        private Task _ordinaryMessageQueueTask;
+
         private Uri _endpointUri;
         private string _sessionId;
         private string _projectHash;
@@ -189,6 +195,8 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
             _connectionCts = null;
             _receiveTask = null;
             _keepAliveTask = null;
+            _ordinaryMessageQueueTask = null;
+            lock (_ordinaryMessageQueueLock) _ordinaryMessageQueue.Clear();
             Interlocked.Exchange(ref _isReconnectingFlag, 0);
             _isConnected = false;
             _state = TransportState.Disconnected(TransportDisplayName);
@@ -332,6 +340,16 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                 try { _connectionCts.Cancel(); } catch { }
             }
 
+            if (_ordinaryMessageQueueTask != null)
+            {
+                if (awaitTasks)
+                {
+                    try { await _ordinaryMessageQueueTask.ConfigureAwait(false); } catch { }
+                    _ordinaryMessageQueueTask = null;
+                }
+                else if (_ordinaryMessageQueueTask.IsCompleted) _ordinaryMessageQueueTask = null;
+            }
+
             if (_receiveTask != null)
             {
                 if (awaitTasks)
@@ -367,11 +385,12 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
 
         private void StartBackgroundLoops(CancellationToken token)
         {
-            if ((_receiveTask != null && !_receiveTask.IsCompleted) || (_keepAliveTask != null && !_keepAliveTask.IsCompleted))
-            {
-                return;
-            }
+            if ((_receiveTask != null && !_receiveTask.IsCompleted)
+                || (_keepAliveTask != null && !_keepAliveTask.IsCompleted)
+                || (_ordinaryMessageQueueTask != null && !_ordinaryMessageQueueTask.IsCompleted)) return;
 
+            lock (_ordinaryMessageQueueLock) _ordinaryMessageQueue.Clear();
+            _ordinaryMessageQueueTask = Task.Run(() => ProcessOrdinaryMessageQueueAsync(token), CancellationToken.None);
             _receiveTask = Task.Run(() => ReceiveLoopAsync(token), CancellationToken.None);
             _keepAliveTask = Task.Run(() => KeepAliveLoopAsync(token), CancellationToken.None);
         }
@@ -387,7 +406,17 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
                     {
                         continue;
                     }
-                    await HandleMessageAsync(message, token).ConfigureAwait(false);
+
+                    // Keep reading while Unity is busy, but admit ordinary execute messages to a
+                    // bounded FIFO before creating tasks. Recovery commands bypass this queue.
+                    if (TryGetExecuteCommandName(message, out string commandName))
+                    {
+                        if (OffMainThreadCommands.IsOffMainThreadCommand(commandName))
+                            _ = HandleMessageSafeAsync(message, token);
+                        else if (!TryEnqueueOrdinaryMessage(message))
+                            await RejectQueueFullExecuteAsync(message, token).ConfigureAwait(false);
+                    }
+                    else _ = HandleMessageSafeAsync(message, token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -452,6 +481,95 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
             finally
             {
                 System.Buffers.ArrayPool<byte>.Shared.Return(rentedBuffer);
+            }
+        }
+
+        /// <summary>
+        /// Run <see cref="HandleMessageAsync"/> without letting a failure escape onto the detached
+        /// task, where it would surface as an unobserved exception rather than a log line. A single
+        /// bad message must not take down the receive loop.
+        /// </summary>
+        private static bool TryGetExecuteCommandName(string message, out string commandName)
+        {
+            commandName = null;
+            try
+            {
+                var payload = JObject.Parse(message);
+                if (!string.Equals(payload.Value<string>("type"), "execute", StringComparison.OrdinalIgnoreCase))
+                    return false;
+                commandName = payload.Value<string>("name");
+                return !string.IsNullOrWhiteSpace(commandName);
+            }
+            catch { return false; }
+        }
+
+        private bool TryEnqueueOrdinaryMessage(string message)
+        {
+            lock (_ordinaryMessageQueueLock)
+            {
+                if (_ordinaryMessageQueue.Count >= MaxQueuedExecuteMessages) return false;
+                _ordinaryMessageQueue.Enqueue(message);
+            }
+            _ordinaryMessageSignal.Release();
+            return true;
+        }
+
+        private async Task ProcessOrdinaryMessageQueueAsync(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try { await _ordinaryMessageSignal.WaitAsync(token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { break; }
+                string message = null;
+                lock (_ordinaryMessageQueueLock)
+                {
+                    if (_ordinaryMessageQueue.Count > 0) message = _ordinaryMessageQueue.Dequeue();
+                }
+                if (message == null) continue;
+                await HandleMessageSafeAsync(message, token).ConfigureAwait(false);
+            }
+        }
+
+        private async Task RejectQueueFullExecuteAsync(string message, CancellationToken token)
+        {
+            try
+            {
+                var request = JObject.Parse(message);
+                string commandId = request.Value<string>("id");
+                if (string.IsNullOrWhiteSpace(commandId))
+                {
+                    McpLog.Warn("[WebSocket] Dropped an overloaded execute message with no request ID.");
+                    return;
+                }
+                var response = new JObject
+                {
+                    ["type"] = "command_result",
+                    ["id"] = commandId,
+                    ["result"] = new JObject
+                    {
+                        ["status"] = "error",
+                        ["error"] = "Unity MCP command queue is full. Retry after an in-flight command completes."
+                    }
+                };
+                await SendJsonAsync(response, token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { McpLog.Warn($"[WebSocket] Failed to reject an overloaded execute message: {ex.Message}"); }
+        }
+
+        private async Task HandleMessageSafeAsync(string message, CancellationToken token)
+        {
+            try
+            {
+                await HandleMessageAsync(message, token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutting down.
+            }
+            catch (Exception ex)
+            {
+                McpLog.Warn($"[WebSocket] Message handling failed: {ex.Message}");
             }
         }
 
@@ -619,9 +737,24 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
             string responseJson;
             try
             {
-                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
-                responseJson = await TransportCommandDispatcher.ExecuteCommandJsonAsync(commandEnvelope.ToString(Formatting.None), timeoutCts.Token).ConfigureAwait(false);
+                if (OffMainThreadCommands.IsOffMainThreadCommand(commandName))
+                {
+                    // Answered off the main thread: these report on (or clear) a blocked main thread,
+                    // so they must not queue behind it. Deliberately outside the ordinary command FIFO — the
+                    // queue being saturated is one of the states they exist to report on. Run on the pool
+                    // rather than inline so the dialog probe's window scan does not hold the
+                    // receive loop either.
+                    responseJson = await Task.Run(
+                        () => OffMainThreadCommands.Handle(commandName, parameters),
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+                else
+                {
+                    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
+                    responseJson = await TransportCommandDispatcher.ExecuteCommandJsonAsync(
+                        commandEnvelope.ToString(Formatting.None), timeoutCts.Token).ConfigureAwait(false);
+                }
             }
             catch (OperationCanceledException)
             {

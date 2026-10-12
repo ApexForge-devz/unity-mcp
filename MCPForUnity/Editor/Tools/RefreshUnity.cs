@@ -50,6 +50,28 @@ namespace MCPForUnity.Editor.Tools
             bool compileRequested = false;
             int compileCountBefore = EditorStateCache.CompileCount;
 
+            // Reconcile scenes changed on disk before AssetDatabase.Refresh can raise a blocking prompt.
+            SceneExternalChangeGuard.Outcome sceneOutcome;
+            try
+            {
+                sceneOutcome = SceneExternalChangeGuard.Reconcile(
+                    @params?["on_external_scene_change"]?.ToString());
+            }
+            catch (Exception ex)
+            {
+                return new ErrorResponse($"scene_reconcile_failed: {ex.Message}");
+            }
+
+            if (sceneOutcome.Blocked)
+            {
+                return new ErrorResponse(sceneOutcome.Error, new
+                {
+                    reason = "open_scene_changed_on_disk",
+                    changed_scenes = sceneOutcome.ChangedScenes,
+                    refresh_triggered = false,
+                });
+            }
+
             try
             {
                 // Best-effort semantics: if_dirty currently behaves like force unless future dirty signals are added.
@@ -155,12 +177,17 @@ namespace MCPForUnity.Editor.Tools
                 ? "compiling"
                 : (EditorApplication.isUpdating ? "asset_import" : "idle");
 
+            // Disk and memory are in sync again; make that the new baseline.
+            SceneExternalChangeGuard.RecordBaseline();
+
             return new SuccessResponse("Refresh requested.", new
             {
                 refresh_triggered = refreshTriggered,
                 compile_requested = compileRequested,
                 compile_started = compileStarted,
                 resulting_state = resultingState,
+                reloaded_scenes = sceneOutcome.ReloadedScenes,
+                overwritten_scenes = sceneOutcome.OverwrittenScenes,
                 hint = shouldWaitForReady
                     ? "Unity refresh completed; editor should be ready."
                     : "If Unity enters compilation/domain reload, poll the mcpforunity://editor/state resource until data.advice.ready_for_tools is true."
