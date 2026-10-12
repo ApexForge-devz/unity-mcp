@@ -170,9 +170,14 @@ namespace MCPForUnity.Editor.Helpers
                 }
                 if (modal == IntPtr.Zero)
                 {
-                    // A disabled window exists, but no owner chain identifies the modal.
-                    // Fail closed rather than guessing which enabled window blocks Unity.
-                    info.Supported = false;
+                    // We have evidence of a disabled Editor window but cannot positively identify
+                    // its modal owner. Preserve the blocked signal so the server requests a human
+                    // inspection rather than reporting an ordinary busy state and waiting forever.
+                    // The unidentified window is never programmatically answerable.
+                    info.Blocked = true;
+                    info.Kind = "unknown";
+                    info.Answerable = false;
+                    info.Title = "Unidentified modal window";
                     return info;
                 }
 
