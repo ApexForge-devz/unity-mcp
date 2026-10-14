@@ -293,3 +293,47 @@ The benchmark code is published and was inspected, which makes the results repro
 ### Recommendation
 
 **High-priority design reference for context/results; do not adopt wholesale as a new always-required service.** Benchmark its approach against the existing feature/unity6-enhancements schema-compaction work. The research question is not “six tools versus dozens” in isolation; it is whether stable typed discovery, safe operation routing, compact results and recoverable full output improve real task success while preserving permissions and correct mutation behavior. A meaningful comparison should measure schema bytes, retrieval accuracy, result bytes, extra round-trips, mutation duplicates, task success, and performance against the current beta backend.
+
+
+## 13. Operational reliability patterns from Isuzu UnityMCP
+
+Full source/test inventory and caveats: [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md).
+
+The independent [Isuzu UnityMCP](https://github.com/isuzu-shiranui/UnityMCP) source adds three patterns worth considering against our existing async jobs and response handling:
+
+- A queued Unity operation has an atomic pending/running/abandoned state. Cancellation only claims success if a pending mutation is guaranteed never to start.
+- Work that outlives the request's synchronous wait receives a job ID and pollable status/result. The protocol response tells the caller not to retry the original call while it is still running.
+- Every tool descriptor can declare a serialized response character budget, and the endpoint enforces it on the actual JSON response. A `job_status` response uses the original tool's descriptor when returning the original result, so transitioning to asynchronous execution does not bypass that tool's limit.
+
+The source-level tests exercise job IDs/generation, completion/failure/cancel status, and result-size rejection. These patterns overlap with our existing async job work; adopt only after mapping current job IDs, cancellation and result behavior, not by adding a duplicate job registry.
+
+**Caveat:** its Streamable HTTP endpoint explicitly supports protocol revisions only through 2025-11-25; it is not the protocol migration template for the 2026-07-28 spec. Its shared/project-scoped JSON-defined tools can point at arbitrary absolute C# files: the definition directories are code-execution surfaces and must be trusted like executable code.
+
+## 14. Funplay — strict filesystem mode and export profiles
+
+The [Funplay execute-code safety policy](https://github.com/FunplayAI/funplay-unity-mcp/blob/main/Editor/Tools/Builtins/ExecuteCodeSafetyPolicy.cs), blob `6f0cf0ea65128bce4e4f023388cc3234f670bd6e`, separates base rules for known dangerous calls/infinite loops from an optional strict filesystem profile covering broader file writes/moves, stream constructors, home/config paths, absolute paths and traversal strings. Its [tests](https://github.com/FunplayAI/funplay-unity-mcp/blob/main/Tests/Editor/ExecuteCodeSafetyPolicyTests.cs), blob `9a00c88d0bf76042d7ea0e5f923b669008c7d060`, explicitly distinguish strict from non-strict behavior.
+
+**Useful:** policy tiers and comprehensive rule regression cases give trusted-local users a more expressive usability/safety trade-off than only one boolean switch.
+
+**Not a sandbox:** source-text regexes do not constrain all possible compiled C# behavior; aliases, reflection, helper methods, dynamically constructed strings and uncovered APIs remain possible. Even the strict profile is not a C# sandbox. Remote/unattended policy must be enforced independently of `safety_checks`. See P0.2.
+
+Funplay's [MCPToolExportProfile.cs](https://github.com/FunplayAI/funplay-unity-mcp/blob/main/Editor/MCP/Server/MCPToolExportProfile.cs) has stable Core/Full profiles and deterministic ordering. Its fixed core allowlist includes `execute_code`, however, so a smaller list is not automatically a safer set. Profiles should be configured separately from per-operation authorization.
+
+## 15. PerfAgent — profiler state ownership and measurement honesty
+
+[PerfAgent-Unity](https://github.com/MothCyan/PerfAgent-Unity) has a useful deterministic profiling workflow, documented in [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md). Its key patterns are:
+- persist prior Profiler enabled/target/history settings in SessionState; restore after domain reload if normal cleanup was interrupted;
+- use a bounded history (2,000 frames in this project) and restore the user's prior setting;
+- prefer ProfilerRecorder allocation counters over a GC memory-difference estimate, retaining weaker metrics only as cross-checks;
+- report “no frames” or “too few frames for statistics” instead of omitting dynamic results or presenting deceptively precise percentiles;
+- keep external MCP integration read-only for diagnosis and capture, with human-confirmed fixes in the Editor UI.
+
+Its golden-rule tests verify that known injected performance issues map to stable rule IDs/categories and a clean snapshot avoids those findings. This is a reusable evidence-quality model for profiling tools, not a request to embed the whole PerfAgent plugin.
+
+## 16. Hatayama, Yecats and Rider extension: environment-specific companion patterns
+
+- [Hatayama's direct-bridge CLI](https://github.com/hatayama/unity-ai-cli-bridge) targets Unity's official `UnityMCPBridge` and does not patch `Library/PackageCache`. Its `status/doctor/help/recipes` commands and companion diagnostics snapshots under `Library/UnityAiCliBridge` are useful for a future adapter/diagnostic UX, but the IPC protocol is specific to the official Unity Assistant bridge.
+- [Yecats Unity MCP Toolkit](https://github.com/Yecats/unity-mcp-toolkit) demonstrates optional tool groups for the official Unity AI Assistant package. Its Input Action editor explicitly refuses mutation in Play Mode (changes could be lost) and its Game View capture downsamples by default. These are useful precondition/payload-size patterns for official-stack extensions, not direct CoplayDev drop-ins.
+- [nowsprinting's Rider MCP extension](https://github.com/nowsprinting/mcp-extension-unity) documents a production compile/domain-reload race: after `AssetDatabase.Refresh` triggers reload, a non-null Rider protocol model can still be the stale pre-reload instance because the reconnection notification has not arrived. Its proposed fix waits for a different model after a known reconnect-triggering operation; it also identified an end-to-end test gap because its original test waited until compilation finished before invoking the tool.
+
+The generalizable lesson is to make connection/project generation explicit and to test compile/refresh while it is happening, instead of treating “non-null session” or a green post-compile test as proof that reconnect handling is correct. Do not port Rider RD APIs.
