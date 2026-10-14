@@ -31,6 +31,8 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Finding:** ExecuteCode.cs compiles and executes supplied C# in the Unity Editor process. safety_checks defaults true but is caller-controlled; blocked-pattern inspection is not a sandbox.
 
+**Context:** Upstream issue [#1438](https://github.com/CoplayDev/unity-mcp/issues/1438) is an open request for a project-path allowlist for selected destructive file operations. Consider that path-level UX, but it does not replace an authorization/trust-boundary policy for arbitrary C#.
+
 **Recommendation — ADAPT:**
 - Define trust modes, e.g. local trusted development versus authenticated remote/unattended execution.
 - Enforce execute_code capability policy server-side before invoking the Unity bridge, including proxy/alias/batch paths.
@@ -53,7 +55,7 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Acceptance tests:** traversal, absolute path, both slash styles, duplicate/case-colliding paths, many tiny entries, one oversized entry, total oversized archive, malformed ZIP, denied extension, partial-failure cleanup, pre-existing-file conflict, and safe nested directories.
 
-**Evidence:** [SafeZipExtractor.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/SafeZipExtractor.cs).
+**Evidence:** [SafeZipExtractor.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/SafeZipExtractor.cs). Target beta and upstream main have the same inspected blob at this snapshot; this limitation is not resolved merely by moving to upstream main. See [UPSTREAM_BRANCH_COMPARISON.md](UPSTREAM_BRANCH_COMPARISON.md).
 
 ## P1 — MCP compatibility and context efficiency
 
@@ -120,6 +122,8 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 ### P2.2 Asset dependency/reference analysis
 
 **Finding:** ManageAsset.GetAssetData has an explicit TODO for extra metadata such as dependencies. A source-reviewed alternative exposes direct/transitive dependencies, reverse dependents, cycles, unused candidates, size impact and reference validation.
+
+**Upstream overlap check:** open PR [#1466](https://github.com/CoplayDev/unity-mcp/pull/1466) proposes read-only AssetBundle file listing and bundle-info inspection. Track/validate that proposal instead of adding a duplicate bundle explorer. This is not the same as an AssetDatabase dependency/reverse-reference graph.
 
 **Recommendation — ADAPT:**
 - Implement a narrow paginated analyze_asset_dependencies capability backed by Unity AssetDatabase.
