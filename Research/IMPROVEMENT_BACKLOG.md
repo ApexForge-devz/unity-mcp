@@ -33,6 +33,8 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Context:** Upstream issue [#1438](https://github.com/CoplayDev/unity-mcp/issues/1438) is an open request for a project-path allowlist for selected destructive file operations. Consider that path-level UX, but it does not replace an authorization/trust-boundary policy for arbitrary C#.
 
+**Additional design reference:** Funplay's optional strict filesystem mode broadens blocklist coverage for file writes, absolute paths and traversal, but remains source-pattern matching. Reuse the policy tiers and regression-test matrix if useful; do not call a strict regex mode a sandbox.
+
 **Recommendation — ADAPT:**
 - Define trust modes, e.g. local trusted development versus authenticated remote/unattended execution.
 - Enforce execute_code capability policy server-side before invoking the Unity bridge, including proxy/alias/batch paths.
@@ -76,13 +78,15 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 ### P1.2 Central result shaping, caps and continuation
 
-**Finding:** Individual tools already paginate, truncate or downscale selected outputs; this is not a centralized guarantee for every MCP response. A transport frame-size limit is not an LLM-context budget.
+**Finding:** Individual tools already paginate, truncate or downscale selected outputs; this is not a centralized guarantee for every MCP response. A transport frame-size limit is not an LLM-context budget. Isuzu UnityMCP enforces the serialized JSON size at its endpoint and applies the original tool's limit when an asynchronous job is later read through job_status; this avoids a large result escaping its inline budget just because the call became asynchronous.
 
 **Recommendation — ADAPT:**
 - Add a central response normalization/budget layer at the MCP return boundary.
 - Default to concise structured summaries; allow callers to request detail fields or bounded pages.
 - For large payloads, return a limited preview plus a stable continuation/object/file handle. Bound spill storage, add expiry, and scope handles to the correct project/session.
 - Include result byte count, truncation state, next-page info and error status in a stable metadata envelope.
+- Enforce the budget in the final response path and on asynchronous job polling, using the original operation's output contract. Do not duplicate result JSON in both content and structured fields if that inflates model context unnecessarily.
+- Pair the cap with an explicit job/result handle when the full result is useful; reject or compact oversized payloads rather than returning a normal-looking empty result. Ensure every tool has a declared budget or inherits a safe default.
 - Keep images opt-in when visual inspection is unnecessary.
 
 **Acceptance tests:** hierarchy, asset search, console logs, component values, nested batch outputs, exceptions, large screenshots/metadata, continuation expiry and project isolation. Verify valid JSON and preservation of critical error/cursor information.
@@ -277,6 +281,22 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 **Acceptance tests:** dirty non-code asset before tests does not cause needless domain reload; dirty script asset is compiled before tests use it; preflight respects active test-run exclusion; timeout/disconnect leaves a clear state; run outcome records compile/reload status.
 
 **Source:** [Target preflight.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/preflight.py), [target run_tests.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/run_tests.py), [bgr change](https://github.com/bgr/unity-mcp/commit/11cfd4caac713c0b59846f2d0203e148e5977d7c).
+
+
+### P2.14 Profiler ownership, data fidelity and sample-size gates
+
+**Finding:** PerfAgent-Unity's ProfilerOwnership records prior Profiler state/history and restores it after domain reload; its rule engine declines dynamic conclusions when sample count is insufficient and labels zero-frame captures explicitly. Its data-fidelity tests prefer ProfilerRecorder metrics where available and propagate unavailable values as NaN/explicit notes rather than silently substituting weaker numbers.
+
+**Recommendation — ADAPT to existing profiling tools:**
+- If a diagnostic tool changes Profiler enabled/profileEditor/history settings, capture and restore user state; use SessionState or equivalent if domain reload interrupts cleanup.
+- Bound capture history/memory during automated sampling and report if the requested capture target or history cap could not be configured.
+- Keep metric provenance (ProfilerRecorder vs estimated GC delta, file metadata vs object-level snapshot, exact vs heuristic asset reference) explicit in results.
+- Add a minimum-sample gate for percentile/statistical conclusions and an explicit no-frames error state. Do not emit plausible zero/default data when a counter is unavailable.
+- Prefer read-only analysis plus user-confirmed mutations for performance fixes; profiling/diagnostics should not silently change the project.
+
+**Acceptance tests:** profile was originally enabled/disabled; profileEditor/history restoration; domain reload during capture; manual Profiler open; unable to set history bound; no frames; too few frames; missing recorder; GC event negative delta; noisy/unreliable metric is marked unavailable; clean snapshot creates no false-positive gold rules.
+
+**Sources:** [PerfAgent ProfilerOwnership.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Editor/Core/ProfilerOwnership.cs), [PerfRuleEngine.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Editor/Analysis/PerfRuleEngine.cs), [PerfDataFidelityTests.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Tests~/Editor/PerfDataFidelityTests.cs), and [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md).
 
 ### P2.5 Release/version/source alignment
 
