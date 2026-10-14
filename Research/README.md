@@ -40,6 +40,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Deep-audit script edit guards, compile/reload readiness, menu-item invocation semantics and missing generator completion receipts.
 - [x] Inspect the underlying RefreshUnity, EditorStateCache, ReadConsole and ManageScene C# contracts to separate compile-start/readiness from compile success.
 - [x] Compare generator-run receipt requirements with the existing asynchronous Test Runner job/status pattern and its reload-persistence limits.
+- [x] Verify a direct Unity CompilationPipeline event path for per-assembly compiler diagnostics and compilation-cycle correlation.
 - [ ] Enumerate and classify direct forks of the target/upstream using a reproducible complete listing.
 - [ ] Systematically review meaningful forks-of-forks and all fork candidates with ahead-of-upstream code.
 - [ ] Diff the high-value candidates file-by-file and map changes to all corresponding target handlers/tests.

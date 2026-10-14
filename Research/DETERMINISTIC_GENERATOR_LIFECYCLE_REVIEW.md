@@ -57,6 +57,13 @@ The C# `RefreshUnity` handler has more nuance than a simple refresh call: when c
 
 That establishes a useful lifecycle signal, but not a successful-build result. `RefreshUnity` does not return the compiler error set or a compile-success boolean, and the editor-state schema does not carry compiler diagnostics. Source-level `validate_script` is helpful before the compile, but should not be described as equivalent to the project's actual Unity compilation result.
 
+**A direct Unity compiler API exists, so Console scraping should be a fallback rather than the design target.** Unity documents `CompilationPipeline.assemblyCompilationFinished` as an Editor-main-thread event supplying the output assembly path and `CompilerMessage[]`; an assembly fails if the event includes build errors. `CompilerMessage` exposes file, line, column, message and type. `CompilationPipeline.compilationFinished` fires after the last per-assembly-finished event, and its context can be matched by reference to the corresponding `compilationStarted` context. This supports one aggregated diagnostic summary per compilation cycle, without parsing the global Console.
+
+Suggested design seam: aggregate bounded per-assembly diagnostics under the compilation context; at cycle finish, persist a compact summary (run/cycle identifier, timestamps, assembly/error/warning counts and capped diagnostics with source locations) in `SessionState` before any domain reload. Expose it through the editor-state/compile-status contract. The next ready-state poll can then distinguish “the pipeline completed” from “the pipeline completed without errors.” Preserve assembly/cycle attribution and clear or supersede stale diagnostics for the next compile. Do not assume the context object's representation is stable or stringifiable; treat it as an in-memory correlation key. Do not start another compilation from a compilation callback.
+
+**Official API references:** [Unity 6.0 `assemblyCompilationFinished`](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/Compilation.CompilationPipeline-assemblyCompilationFinished.html), [Unity 7.0 `compilationFinished`](https://docs.unity.com/en-us/engine/7000.0/script-reference/unityeditor/compilation/compilationpipeline/compilationfinished), [Unity 7.0 `CompilerMessage`](https://docs.unity.com/en-us/engine/7000.0/script-reference/unityeditor/compilation/compilermessage).
+
+
 The existing `read_console` tool can filter error/warning messages and page through entries, but its contract has no timestamp, “since compile started” cursor, or generator/run correlation ID. Taking a before/after log snapshot is a possible interim workaround, but repeated messages, parallel Editor activity or Console changes make that less reliable than a compiler-result delta tied to the compile operation.
 
 **Recommendation:** after a script change, distinguish (a) source validation, (b) compile-start acknowledgement, (c) Unity compile/reload completion, and (d) absence of blocking compiler errors. Prefer a structured compiler-result snapshot correlated to the compile request. If using Console logs as an interim check, capture a baseline and explicitly report its weaker correlation guarantee. Do not infer compile success from a successful refresh response or a ready Editor alone.
@@ -84,7 +91,7 @@ The default loop should be:
 1. **Resolve and record identity:** target Unity instance/project, generator source path, source SHA-256, output scene path and declared ownership boundary.
 2. **Edit once:** use the existing SHA-guarded structured edit path; return the updated SHA and a concise diff.
 3. **Validate source:** return diagnostics from source validation. On errors, stop before requesting generator execution.
-4. **Compile and wait:** request the Unity compile/reload path and wait for Editor readiness. Separately confirm that the actual Unity compilation has no blocking errors. Do not treat readiness alone as success.
+4. **Compile and wait:** request the Unity compile/reload path and wait for Editor readiness. Separately confirm that the actual Unity compilation has no blocking errors. Prefer `CompilationPipeline` compiler messages aggregated by compilation context over Console before/after diffs. Do not treat readiness alone as success.
 5. **Invoke once:** run the named, project-owned generator against the declared target. Give the operation a unique run ID; do not rely on a generic menu-invocation acknowledgement as the completion result.
 6. **Track completion:** reconcile run ID/status after disconnects or timeouts instead of blindly resending the start command. Distinguish failed-to-start, running, succeeded, failed and unknown outcome.
 7. **Validate the generated scene:** assertions run in the generator or a dedicated read-only validator. Verify scene path/identity, required scene roots and domain-specific counts, missing scripts, asset references, required component/property values, save result and relevant visual/rendering invariants.
@@ -116,6 +123,7 @@ In a multi-Editor setup, scope server-side receipts to the selected Unity instan
 |---|---|
 | Valid generator source | Source validation passes, Unity compile/reload completes, and only then can invocation start. |
 | Source has a compiler error | The run is rejected with actionable compiler diagnostics; generator is not invoked and the output scene is unchanged. |
+| Diagnostics span assemblies | Errors/warnings are attributed to the correct assembly and compilation cycle; only bounded diagnostics are returned and stale errors do not contaminate a later successful cycle. |
 | Reload disconnect after edit | Source SHA is reconciled, Editor readiness returns, and no duplicate source mutation occurs. |
 | Menu invocation returns but generator later fails | Final result is failed, not successful merely because the menu command was accepted. |
 | Response lost after invocation | Querying the same run ID returns the existing state; the start is not blindly duplicated. |
