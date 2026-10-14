@@ -11,6 +11,12 @@
 4. Which proposed features are already present, incomplete, or missing in this repo?
 5. What is the safest, smallest implementation plan to improve real agent success, safety, maintainability, latency, and context efficiency?
 
+## Scope boundary — MCP to Unity only
+
+[Scope is authoritative in SCOPE.md](SCOPE.md). Include MCP protocol and tool contracts, Python/server-to-Unity transport, Unity Editor dispatch and main-thread behavior, instance/project routing, readiness and domain reload, cancellation/retry/idempotency, tool discovery/schema/results, project-local scenes/GameObjects/components/prefabs/assets, compile/test/Play Mode/build workflows, profiling/diagnostics, and editor tooling.
+
+Exclude integrations with external or local generation/inference systems and third-party provider APIs, including Meshy, ComfyUI, Pinokio, hosted image/3D/audio/video generators, provider credentials/SDKs, remote generation jobs, and provider artifact downloads. Do not add them to the backlog. When reviewing a fork with such features, record those features only as out-of-scope context and extract a pattern only if it independently improves in-scope MCP↔Unity behavior without retaining the integration.
+
 ## 2. Target and baseline discipline
 
 Primary target: [ApexForge-devz/unity-mcp](https://github.com/ApexForge-devz/unity-mcp), default branch `beta`.
@@ -53,7 +59,7 @@ Score candidate contributions across these areas:
 - C# authoring/editing, compile validation, tests, Play Mode, and build workflows.
 - Asset search, metadata, dependency/reference graphs, prefab usage, and safe cleanup analysis.
 - Profiling, diagnostics, logs, screenshots and repeatable visual iteration.
-- Security policy for remote transport, authentication, arbitrary C#/shell execution, destructive actions, untrusted archives, and path validation.
+- Security policy for MCP transport, authentication, arbitrary C#/shell execution, destructive Unity/project-local actions, and path validation.
 - Tests, CI matrix, packaging/release, version compatibility, docs, license/provenance, and maintainer activity.
 
 Do not prioritize feature count. Prefer evidence of correctness, task success, safety, testability, bounded resource usage, and maintainability.

@@ -4,11 +4,11 @@
 **Snapshot:** 2026-10-14  
 **Baseline:** ApexForge-devz/unity-mcp beta, currently identical to upstream CoplayDev/unity-mcp beta at the observed commit SHA.
 
-This is a research backlog, not a claim that every issue has manifested in production. Rank reflects cross-workflow value, risk reduction and prerequisite value—not just feature appeal.
+This is a research backlog, not a claim that every issue has manifested in production. Rank reflects cross-workflow value, risk reduction and prerequisite value—not just feature appeal. Scope is constrained by [SCOPE.md](SCOPE.md): only MCP↔Unity handling and project-local workflows are eligible. External generator/inference/provider integrations are not backlog candidates.
 
 ## Executive recommendation
 
-Do not rewrite the architecture or inflate tool count. Keep the Python MCP service plus Unity C# Editor bridge. Prioritize protocol compatibility, privileged-operation policy, resource limits, and truthful/bounded tool contracts. Then improve editor liveness diagnostics and asset reference analysis. Add specialist features only after verifying existing profiling coverage and benchmarking value.
+Do not rewrite the architecture or inflate tool count. Keep the Python MCP service plus Unity C# Editor bridge. Prioritize protocol compatibility, privileged-operation policy, resource limits, and truthful/bounded tool contracts. Then improve editor liveness diagnostics, project-local asset reference analysis, and Unity Editor workflows. Add specialist features only after verifying existing profiling coverage and benchmarking value. Do not add external generators, third-party APIs, provider SDKs, or remote generated-asset pipelines.
 
 ## P0 — Safety and contract correctness
 
@@ -44,38 +44,6 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 **Acceptance tests:** unauthorized remote call denied before dispatch; setting safety_checks=false cannot bypass server policy; aliases and batch paths enforce the same policy; trusted-local mode behaves as configured; policy is stable across session changes and domain reload. These are policy tests on top of existing ExecuteCodeTests.cs blocklist coverage, not replacements for it.
 
 **Evidence:** [ExecuteCode.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteCode.cs), design comparison [Pushkar-Env](https://github.com/pushkar-env/unity-mcp).
-
-### P0.3 ZIP expansion and archive metadata limits
-
-**Finding:** target SafeZipExtractor already rejects Zip-Slip/path escapes and supports an extension allowlist, but no entry-count, per-entry expanded-byte, total expanded-byte, compression-ratio or pre-archive metadata budget was evident in the inspected implementation. The directly confirmed upstream-derived fork [ykh09242/unity-mcp](https://github.com/ykh09242/unity-mcp) adds `ZipMetadataPreflight`, ZIP64/EOCD consistency checks, 4,096-entry, 512 MiB-per-entry, 2 GiB-total and 200:1-ratio defaults, cancellation-aware streaming, `CreateNew` writes and cleanup of files created by a failed extraction.
-
-**Recommendation — ADAPT:**
-- Keep current target path-containment and extension-allowlist protections.
-- Reject excessive/inconsistent ZIP central-directory metadata **before** `ZipArchive` materializes all entries.
-- Add hard caps for entry count, per-entry expanded bytes, aggregate expanded bytes and a tested compression-ratio policy; use overflow-safe arithmetic.
-- Enforce actual expanded byte counts while streaming, not only advertised metadata.
-- Keep cancellation responsive and never overwrite pre-existing files. Track cleanup ownership so failed imports remove only files/folders created by that extraction.
-- Ensure all provider archive import paths pass the inert asset allowlist; unknown archive formats fail closed.
-
-**Acceptance tests:** normal archives; ZIP64; malformed/inconsistent EOCD and central-directory bounds; split archive; many tiny entries; oversized entry/total; high expansion ratio; paths with Windows and Unix separators; absolute/drive/colon/path traversal paths; duplicate/case-colliding targets; allowed/disallowed extensions; cancellation and injected write failure; pre-existing output remains untouched; cleanup only removes owned artifacts; safe nested paths. Run the EditMode suite on every supported Unity/.NET profile.
-
-**Evidence:** [target SafeZipExtractor.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/SafeZipExtractor.cs), fork [SafeZipExtractor.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/SafeZipExtractor.cs), [ZipMetadataPreflight.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/ZipMetadataPreflight.cs), [ArchiveLimitSecurityTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/ArchiveLimitSecurityTests.cs), [ZipMetadataSecurityTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/ZipMetadataSecurityTests.cs). The target's inspected path had no matching quota/preflight tests.
-
-### P0.4 Validate and bound provider artifact downloads
-
-**Finding:** target AssetGen's `UnityWebRequestTransport` uses `DownloadHandlerBuffer` for the general API path and its `HttpRequestSpec` has no provider-artifact purpose field. The inspected source lacks a shared hard body cap and a provider-specific validation step for untrusted model/image/audio result URLs and their redirects. Fork ykh09242 adds `DownloadProvider`, a 32 MiB `BoundedDownloadHandler` for API responses, a 512 MiB artifact byte limit, manual redirect handling, and provider host plus public DNS/IP checks on every hop. Its tests also assert that rejected URLs fail before DNS/network access and that streamed bodies are bounded when Content-Length is absent or false.
-
-**Recommendation — ADAPT with a separately validated transport design:**
-- Add a capped streaming response handler for provider API responses; return an explicit error if the limit is exceeded instead of returning a partial/normal-looking payload.
-- Distinguish authenticated provider API requests from unauthenticated artifact GETs in the request type, and keep redirect policy appropriate to each.
-- For artifact downloads, require HTTPS and exact provider-specific approved hosts; validate every redirect target; reject userinfo/fragments, unexpected ports, IP-literal hosts and any DNS answer set containing non-public addresses.
-- Enforce maximum download size during streaming regardless of Content-Length; add an overall deadline, cancellation and redirect-count limits. Do not log signed artifact URLs or API credentials.
-- Review DNS pinning, Host/SNI and certificate validation carefully across Unity Mono/.NET versions and OSes. Do not cherry-pick a custom HttpWebRequest-to-IP implementation until hostname/certificate behavior is proven in the supported runtime matrix.
-- Verify every provider's currently documented CDN hosts before fixing an allowlist. Fail closed on a new host until the allowlist and regression tests are deliberately updated; no unrestricted-host escape hatch.
-
-**Acceptance tests:** provider/host mismatch; lookalike host suffix/prefix; HTTP, custom port, userinfo, fragment, IP literal and loopback/private/link-local/cloud metadata URLs; mixed public/private DNS answers; IPv4-mapped IPv6 and special IPv6 blocks; each redirect hop revalidated, redirect cap enforced; redirect to another allowed CDN if documented; invalid certificate/hostname rejected; 200/3xx/error bodies capped; missing/false/exact/excess Content-Length; cancellation/deadline; no automatic redirect of API credentials; normal provider artifacts succeed on each supported Unity version and platform. Run network tests with injected DNS/HTTP fakes first, then credential-free live host checks; do not use real API keys in tests.
-
-**Evidence:** [target UnityWebRequestTransport.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/UnityWebRequestTransport.cs), target [HttpRequestSpec.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/HttpRequestSpec.cs), fork [AssetDownloadPolicy.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/AssetDownloadPolicy.cs), [AssetDownloadTransport.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/AssetDownloadTransport.cs), [BoundedDownloadHandler.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/BoundedDownloadHandler.cs), and [AssetDownloadTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/AssetDownloadTests.cs).
 
 ## P1 — MCP compatibility and context efficiency
 
@@ -209,22 +177,6 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 **Evidence:** [Modal Liveness Review](DRAFT_PR_MODAL_LIVENESS_REVIEW.md), [ModalDialogProbe.cs](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/MCPForUnity/Editor/Helpers/ModalDialogProbe.cs), [SceneExternalChangeGuard.cs](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/MCPForUnity/Editor/Helpers/SceneExternalChangeGuard.cs), [answer_dialog.py](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/Server/src/services/tools/answer_dialog.py).
 
 
-
-### P1.9 Persist billable provider checkpoints and never replay an unknown submission
-
-**Finding:** Target AssetGen job snapshots are persisted to SessionState, but the inspected target manager has no Meshy-specific durable disk journal or explicit preview/refine checkpoint. The direct fork [haohao-0407/unity-mcp](https://github.com/haohao-0407/unity-mcp) adds an atomic journal, confirmed provider task IDs, a submission-pending state, explicit resume/attach actions and a real domain-reload test. If the Editor reloads or the response is lost after a paid POST, the system must distinguish an unknown submission outcome from a confirmed remote task.
-
-**Recommendation — ADAPT the invariant into the existing job manager:**
-- Persist a “submission pending / outcome unknown” marker before sending any non-idempotent billable request.
-- Only mark the task recoverable once a confirmed remote task ID and the state needed to poll/refine/import have been durably stored.
-- If a reload occurs while a POST is pending and no task ID was received, **do not automatically resubmit**. Surface the uncertain outcome and offer only an explicit reconciliation/attach flow if the provider supports one.
-- Save the root preview ID and follow-up refine ID separately, checkpointing the refine ID before polling it. Reconstruct the adapter from recorded non-secret parameters.
-- Keep API keys, Authorization headers, signed artifact URLs and raw secret-bearing payloads out of journals/logs. Bound retention and clean up terminal journal entries carefully.
-- Expose status/list/resume operations consistently in the Python MCP schema only after the Editor handler's resume contract is tested.
-
-**Acceptance tests:** timeout while POST is pending; reload immediately before and after POST response; explicit one-POST assertion after actual domain reload; preview success/refine submit; reload during refine; timeout with known task ID followed by explicit resume; cancellation never auto-resumes; corrupted/unreadable journal; atomic replacement failure; Library read-only; provider key is absent from every serialized record; restart cleans or bounds stale journal files.
-
-**Evidence:** [haohao Meshy recovery review](FORK_HAOHAO_MESHY_RECOVERY.md), [MeshyRecoveryTests.cs](https://github.com/haohao-0407/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/MeshyRecoveryTests.cs), [MeshyDomainReloadTests.cs](https://github.com/haohao-0407/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/MeshyDomainReloadTests.cs).
 
 ## P2 — Reliability and high-value domain work
 
@@ -452,7 +404,7 @@ For each, establish a task baseline and controlled experiment first. Do not acce
 
 | Milestone | Work | Exit condition |
 |---|---|---|
-| M0 — safety/contract | Batch schema, privileged C# policy, archive quotas | Tests prove truthful semantics, server policy and bounded ZIP expansion |
+| M0 — safety/contract | Batch schema, privileged C# policy | Tests prove truthful semantics and server policy |
 | M1 — protocol | FastMCP 4 / modern and legacy MCP spike | Contract matrix passes before changing dependency pin |
 | M2 — results | Central output governor and continuation handles | Representative tools never return unbounded payloads |
 | M3 — observability | Editor pump diagnostics, correlation, safe retry semantics | Slow/stalled/disconnected/unknown outcomes distinguishable |
@@ -479,3 +431,4 @@ For each, establish a task baseline and controlled experiment first. Do not acce
 - Advertise concurrent Unity API operations that must run on the main thread.
 - Auto-delete assets based on heuristic “unused” results.
 - Treat static source inspection, successful compilation or README claims as substitutes for live Unity correctness/performance tests.
+- Add no integrations with Meshy, ComfyUI, Pinokio, hosted/local generation services, third-party generation APIs, provider credentials/SDKs, remote generation-job management, or provider-specific artifact downloads. Provider-specific review notes retained elsewhere are historical and out of scope.

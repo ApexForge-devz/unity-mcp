@@ -8,7 +8,7 @@
 
 ## Purpose
 
-Systematically evaluate the upstream Unity MCP implementation, its forks and derivative implementations, plus independent Unity-editor agent bridges. Identify concrete improvements that can be adapted to this repository with source evidence, compatibility analysis, risk, and measurable acceptance criteria.
+Systematically evaluate the MCP protocol/server and Unity Editor bridge, their forks and derivative implementations, and independent Unity-editor agent bridges. Recommend only improvements to MCP↔Unity handling: transport and lifecycle correctness, tool discovery/contracts, safe Unity operations, tests, profiling, and project-local workflows. See [SCOPE.md](SCOPE.md) for mandatory inclusions and exclusions.
 
 This folder is a living research record. Findings must be updated as source revisions change. It is not authorization to implement every proposed idea.
 
@@ -40,6 +40,7 @@ This folder is a living research record. Findings must be updated as source revi
 
 ## Documents
 
+- [Scope boundary — MCP to Unity only](SCOPE.md)
 - [Methodology and evidence standard](METHODOLOGY.md)
 - [Repository and fork inventory](REPOSITORY_INVENTORY.md)
 - [Current architecture baseline](CURRENT_BASELINE.md)
@@ -54,11 +55,16 @@ This folder is a living research record. Findings must be updated as source revi
 - [Existing draft PR and upstream overlap](DRAFT_PR_AND_UPSTREAM_OVERLAP.md)
 - [Draft PR schema-compaction code review](DRAFT_PR_CODE_REVIEW.md)
 - [Draft PR modal liveness and scene-guard review](DRAFT_PR_MODAL_LIVENESS_REVIEW.md)
-- [ykh09242 AssetGen download and ZIP security review](FORK_YKH09242_ASSETGEN_SECURITY.md)
-- [haohao-0407 Meshy recovery review](FORK_HAOHAO_MESHY_RECOVERY.md)
 - [onlyfeng test-status cache review](FORK_ONLYFENG_TEST_STATUS_CACHE.md)
 - [Serraya profiler expansion review](FORK_SERRAYA_PROFILER_REVIEW.md)
 - [Cross-repository operational reliability patterns](OPERATIONAL_RELIABILITY_PATTERNS.md)
+
+### Historical references — excluded from active scope
+
+These source reviews are retained only to preserve the research trail. They are **not** implementation recommendations and must not expand the active backlog into external generator/provider integrations.
+
+- [Historical AssetGen download/security review — out of scope](FORK_YKH09242_ASSETGEN_SECURITY.md)
+- [Historical Meshy recovery/options review — out of scope](FORK_HAOHAO_MESHY_RECOVERY.md)
 
 ## Important interpretation rules
 
@@ -79,10 +85,11 @@ This folder is a living research record. Findings must be updated as source revi
 - How should tool discovery reduce schema/context overhead while retaining typed schemas for common actions?
 - Can every tool result be governed by one configurable output budget, including structured content and images?
 - How should arbitrary in-process C# execution be gated for local trusted use versus remote/unattended use?
-- Are archive expansion limits, editor-loop liveness diagnostics, mutation retries, and idempotency sufficiently robust?
+- Are editor-loop liveness diagnostics, mutation retries, idempotency, and local project-file operations sufficiently robust?
 - What asset dependency/reference analysis is missing, and how can results be verified without unsafe auto-deletion?
 - Does the existing Frame Debugger profiling implementation need event identity/capture-stability fixes like those documented in a specialized derivative?
-- Which alternative designs measurably improve real tasks rather than merely increasing tool count?
+- Which MCP↔Unity designs measurably improve real tasks rather than merely increasing tool count?
+- External generator, inference, and provider API integrations are excluded even when found in a fork; assess only independently useful MCP/Unity-side patterns.
 
 ## Existing internal research
 

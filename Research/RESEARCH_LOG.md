@@ -425,3 +425,12 @@ Review concerns:
 - Existing backlog P2.3 now includes this fork as a richer capability lead while keeping the earlier pashara path separate. Do not copy the entire large file blindly; port by contract.
 
 No Unity test or live capture was executed by this research session.
+
+
+## Scope correction — MCP to Unity only (2026-10-14)
+
+The research scope is now explicitly limited to improvements in the MCP protocol/server and its Unity Editor bridge, plus useful project-local Unity workflows. Priority areas are tool discovery and schema quality, compact and truthful results, transport/instance identity, Editor main-thread scheduling and liveness, cancellation and mutation retry safety, scene/GameObject/component/prefab and local-asset operations, code/compile/test/Play Mode/build workflows, profiling/diagnostics, configuration, and testability.
+
+External generator and inference integrations are excluded: no Meshy or other hosted generation APIs, ComfyUI/Pinokio integrations, third-party generator SDKs or credentials, local inference orchestration, provider-specific model options, billable remote generation jobs, or provider artifact download pipelines. Such features found in fork reviews are historical observations only, not recommendations. The provider-focused reviews remain linked for provenance but have been marked **OUT OF SCOPE**; they must not drive implementation planning. Generic MCP↔Unity reliability lessons may still be considered only when they can be applied independently of those integrations.
+
+The active source of truth for proposed work is [IMPROVEMENT_BACKLOG.md](IMPROVEMENT_BACKLOG.md), constrained by [SCOPE.md](SCOPE.md). This is a documentation-only scope correction: no runtime code, provider integrations, or tests were changed/run in this update.

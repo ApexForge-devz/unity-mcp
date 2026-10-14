@@ -1,5 +1,8 @@
 # Direct Fork Review — haohao-0407 Meshy Recovery and Model Options
 
+> **OUT OF SCOPE — historical reference only (2026-10-14).** This document examines a third-party generator/provider integration. Starlord's current research scope is MCP↔Unity handling and Unity-project-local workflows only. Do not implement or prioritize the provider integration, API use, generator-specific options, remote jobs, or artifact-download pipeline described below. The file is retained solely for research traceability; see [SCOPE.md](SCOPE.md).
+
+
 **Target fork:** [haohao-0407/unity-mcp](https://github.com/haohao-0407/unity-mcp), branch **beta**  
 **Relationship:** Direct fork of CoplayDev/unity-mcp  
 **Compare snapshot:** 7 ahead, 0 behind; 22 changed files.  

@@ -1,5 +1,7 @@
 # Fork Candidate Register — Search Snapshot
 
+> **Scope filter:** This register may note unrelated capabilities observed while reviewing forks, but active recommendations are limited to MCP↔Unity handling and Unity-project-local workflows. External generation/provider integrations (including Meshy, ComfyUI/Pinokio workflows, hosted inference, provider APIs, and remote artifact downloads) are explicitly out of scope. Do not adapt or prioritize those feature sets.
+
 **Snapshot date:** 2026-10-14  
 **Status:** Candidate register only; not a complete inventory of all direct forks.
 
@@ -194,7 +196,9 @@ Search query: `unity-mcp fork:only pushed:>2026-01-01` returned a broad page con
 The compare API's largest values are snapshots as returned by GitHub on this query; “zero ahead” is the important finding for the current default refs, not proof that a fork has no useful non-default branches. These are candidate-level checks, not an exhaustive fork inventory.
 
 
-## J. Deep source review — ykh09242 AssetGen security/lifetime work (2026-10-14)
+## J. Historical source review — ykh09242 AssetGen provider download security/lifetime (OUT OF SCOPE)
+
+> **Disposition:** Historical evidence only. Provider-host allowlists, provider API response handling, remote artifact download transport, and generator-output ZIP processing are not active Unity-MCP recommendations. Do not implement these integrations; this section is retained to document what was inspected.
 
 [ykh09242/unity-mcp:beta](https://github.com/ykh09242/unity-mcp/tree/beta) is a confirmed direct fork of CoplayDev. Its compare endpoint reports a large ahead delta with many unrelated web/workflow changes, so do not merge the fork wholesale. The directly inspected Unity-specific changes are highly relevant to the target's existing P0 ZIP resource gap:
 
@@ -207,13 +211,15 @@ The compare API's largest values are snapshots as returned by GitHub on this que
 | Expanded archive budgets | Fork [SafeZipExtractor.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/SafeZipExtractor.cs), blob f9b48ec349e608094c79125e8d48f6988720d860 | Target has Zip-Slip and optional extension filtering, but no clear entry/byte/ratio quotas | Adapt |
 | Async payload lifetime tests | [AssetGenConsumedTaskLifetimeTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/AssetGenConsumedTaskLifetimeTests.cs), [AssetGenProviderPayloadLifetimeTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/AssetGenProviderPayloadLifetimeTests.cs), [AssetGenSubmissionCaptureLifetimeTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/AssetGenSubmissionCaptureLifetimeTests.cs) | Target's reviewed test tree has no equivalents with the same coverage | Adapt the regression pattern |
 
-The full source-level review and exact blob hashes are in [FORK_YKH09242_ASSETGEN_SECURITY.md](FORK_YKH09242_ASSETGEN_SECURITY.md). Tests are committed in that fork but were not run in this research session. Treat its download-transport TLS/Host/SNI implementation as a high-scrutiny design; do not claim its provider-host assumptions are independently verified until the official documentation and actual live redirects are checked.
+The full historical source review and exact blob hashes are in [FORK_YKH09242_ASSETGEN_SECURITY.md](FORK_YKH09242_ASSETGEN_SECURITY.md). This is retained as out-of-scope context only; no provider-download implementation is recommended. Tests are committed in that fork but were not run in this research session. Treat its download-transport TLS/Host/SNI implementation as a high-scrutiny design; do not claim its provider-host assumptions are independently verified until the official documentation and actual live redirects are checked.
 
-## K. Narrow high-value fork contributions: Meshy recovery and test status resilience (2026-10-14)
+## K. Historical Meshy review and in-scope test-status cache (2026-10-14)
+
+> **Disposition:** Meshy-specific model options, generation tasks, paid submissions, and provider recovery are **OUT OF SCOPE**. The only in-scope item in this combined comparison is the separate onlyfeng test-status cache, because it improves reliability of existing MCP-to-Unity test-job polling without adding an external integration.
 
 | Direct fork | Compare snapshot | Reviewed contribution | Decision |
 |---|---|---|---|
-| [haohao-0407/unity-mcp](https://github.com/haohao-0407/unity-mcp) | beta; 7 ahead, 0 behind, 22 changed files | Atomic disk journal for Meshy model jobs, checkpointed preview/refine IDs, no automatic resubmit when a billable POST's result is unknown, explicit resume/attach and a real domain-reload test. Also a typed MeshyModelOptions parameter layer with validation. | Adapt the no-duplicate-submit recovery invariant into the existing manager; independently verify Meshy option/model API contracts. See [FORK_HAOHAO_MESHY_RECOVERY.md](FORK_HAOHAO_MESHY_RECOVERY.md). |
+| [haohao-0407/unity-mcp](https://github.com/haohao-0407/unity-mcp) | beta; 7 ahead, 0 behind, 22 changed files | Meshy-specific generation journal/checkpoints and model-option validation. | **OUT OF SCOPE — do not adapt provider integration features.** Historical notes: [FORK_HAOHAO_MESHY_RECOVERY.md](FORK_HAOHAO_MESHY_RECOVERY.md). |
 | [onlyfeng/unity-mcp](https://github.com/onlyfeng/unity-mcp) | beta; 52 ahead, 0 behind, 29 changed files | 20-entry identity-scoped async test status cache; cached terminal status after transient transport failures; detail-fidelity flags, degraded-response metadata and a broad regression test set. | Adapt narrowly, adding a monotonic observation-order guard for out-of-order concurrent polls. See [FORK_ONLYFENG_TEST_STATUS_CACHE.md](FORK_ONLYFENG_TEST_STATUS_CACHE.md). |
 | [haohao-0407/unity-mcp](https://github.com/haohao-0407/unity-mcp) | same compare | Additional model options are highly provider-version-sensitive. Current Meshy docs were checked separately; lowpoly is documented as retiring on 2026-10-30, so the fork's blanket pre-retirement disabling of T1/lowpoly should not be copied without a deliberate support/deprecation decision. | Validate against current official provider documentation and tests rather than treating the fork's accepted-value list as authoritative. |
 

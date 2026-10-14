@@ -1,5 +1,8 @@
 # Direct Fork Review — ykh09242/unity-mcp AssetGen Download and Archive Security
 
+> **OUT OF SCOPE — historical reference only (2026-10-14).** This document examines a third-party generator/provider integration. Starlord's current research scope is MCP↔Unity handling and Unity-project-local workflows only. Do not implement or prioritize the provider integration, API use, generator-specific options, remote jobs, or artifact-download pipeline described below. The file is retained solely for research traceability; see [SCOPE.md](SCOPE.md).
+
+
 **Target fork:** [ykh09242/unity-mcp](https://github.com/ykh09242/unity-mcp), default branch `beta`  
 **Parent:** CoplayDev/unity-mcp (confirmed from GitHub repository metadata)  
 **Source snapshot:** 2026-10-14  
