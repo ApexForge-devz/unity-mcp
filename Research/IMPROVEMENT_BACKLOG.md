@@ -332,6 +332,11 @@ See §3.6–§3.7 in the detailed review. These are source-review findings; no U
 
 **Decision — ADAPT (P2 / low cost):** guidance can reduce blind retry loops after the existing bounded session-reconnect wait. Explicitly direct the agent to read mcpforunity://instances and verify the requested project/instance identity, since starting an arbitrary Unity Editor does not fix a request routed to the wrong instance. Add focused tests for no_unity_session vs stale_connection and the unchanged machine-readable contract. This is response guidance, not a fix for stalled compilation, background Editor throttling or transport routing.
  
+### P2.20 Custom tool parameter-order independent registration
+
+**Upstream PR #1472:** [UPSTREAM_PR_1472_CUSTOM_TOOL_PARAMETER_ORDER_REVIEW.md](UPSTREAM_PR_1472_CUSTOM_TOOL_PARAMETER_ORDER_REVIEW.md) fixes a reproducible bug in dynamic custom-tool signature creation. The target currently marks every generated user parameter POSITIONAL_OR_KEYWORD, which makes Python reject an optional parameter before a later required parameter when building inspect.Signature. Using KEYWORD_ONLY for custom parameters matches the handler's **kwargs calling convention and MCP's named arguments while preserving requiredness, types/defaults and declared order. The injected Context parameter stays unchanged.
+
+**Decision — ADAPT:** narrow Python-only fix. Keep the regression test for both optional-first and required-first definitions, and add a locked FastMCP schema test that proves required fields/defaults and Context injection in the public inputSchema. The PR is open/unmerged at review time; author-reported tests were not independently rerun.
 ### P2.5 Release/version/source alignment
 
 **Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.
