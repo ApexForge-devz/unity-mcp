@@ -268,3 +268,41 @@ Tried the GitHub forks HTML path through the browsing tool as well; it returned 
 ### Current branch status
 
 Research branch remains docs-only. No Unity runtime/build/test, Python test suite, live facade benchmark, or MCP integration benchmark was run in this tranche. Existing PR #1 CI status (Python/compile/docs pass; Unity test and live E2E jobs skipped for lack of license secrets) is still the latest inspected validation state; recheck it before merging that implementation branch.
+
+
+## Continued source review — upstream operational PRs (2026-10-14)
+
+### Detailed proposal source pass
+
+Added Section 6/7 in UPSTREAM_BRANCH_COMPARISON.md and additional backlog items after checking the latest open-PR metadata and fetching exact changed-file patches.
+
+- **PR #1463 — Play Mode startup readiness:** adds scene-loaded/first-frame gates, a startup job ID and optional once-only post-startup C# body. Unity persists startup state through domain reload; if code is executing during a reload it records interruption instead of automatically replaying side effects. Python times out into “poll this known job; do not resubmit” behavior. Key risk to test: same semantics across Python and CLI REST paths and no cross-Editor job routing.
+- **PR #1460 — native test-run cleanup:** retains native Unity Test Runner ID after an MCP initialization timeout, restores throttling/preferences, persists cleanup state across reload, and blocks a second run until native cleanup finishes. This is stronger than simply failing the MCP job. Key tests are timeout before/after RunStarted, reload, late callbacks, cleanup and second-job handoff.
+- **PR #1465 — async Editor-window refresh:** new EditorAsyncRefresh helper runs thread-safe I/O/validation on workers, coalesces duplicate requests, caches results for a TTL, uses generations to discard stale work and avoids applying to detached windows. Requires proof that worker functions have no hidden Unity API dependencies and all visual UI writes return to the Editor thread.
+- **PR #1468 — manual client config preservation:** protects user-managed stdio executable/env/cwd settings from generated config overwrites and validates malformed args before rewriting. Treat external client config as user-owned data.
+- **PR #1285 — project-scoped endpoint ownership:** scopes local endpoint, transport, PID/port and instance token by project hash and supports a process-level HTTP URL override. Need compare current ProjectIdentityUtility/EditorConfigurationCache/server lifecycle before adopting.
+- **PR #1194 — launch-directory instance matching:** resolves MCP roots/file URIs to a project root and chooses a matching Editor only when unambiguous. This can improve multi-worktree routing; it must fail closed for ambiguity and isolate root caches per caller/session.
+- **PR #1462 — prefab instance overrides:** list/apply/revert property and structural overrides for a narrowly selected prefab instance. Track this upstream proposal before adding a parallel API.
+- **PR #1472 — custom tool signature fix:** makes generated custom-tool parameters keyword-only, preserving required/default metadata for optional-before-required parameter order. Author reports 1,577 Python tests passed; this is not independently rerun in the research session.
+- **PR #1461 — file-backed server instructions:** appends configured UTF-8 instructions at server startup. Useful for conventions, but scope must be defined for shared/multi-project HTTP servers and file content must be trusted, bounded and never exposed in error logs.
+
+No PR source or test claim above was treated as merged into target beta. Open status at snapshot is not a substitute for checking the PR against the exact current branch before implementation.
+
+### Additional fork-only candidate findings
+
+- [bgr/unity-mcp:bgr-patches](https://github.com/bgr/unity-mcp/tree/bgr-patches): compare is 2 ahead / 1,311 behind. Its unique commits propose changing preflight dirty-asset refresh from compile=request to compile=none to avoid an unnecessary domain reload before tests, and auto-reconnect a local session when the server remains reachable. These are hypotheses: test whether changed C# scripts are still compiled before tests and ensure auto-reconnect cannot override intentional manual disconnect.
+- [xOrfe/unity-mcp:beta](https://github.com/xOrfe/unity-mcp/tree/beta): 2 ahead / 635 behind, only updates Antigravity Windows/Linux config location. Target beta already uses the Antigravity 2.0 path under ~/.gemini/config/mcp_config.json on Windows/macOS/Linux, so this delta is already superseded; no port required.
+- Other newly compared forks with zero ahead commits appear to be older mirrors at their compared default refs. Their status and counts are recorded in FORK_COMPARISONS.md and FORK_CANDIDATE_REGISTER.md; those comparisons do not establish anything about unexamined non-default branches.
+
+### Backlog updates made
+
+Added:
+- P1.6 project-scoped endpoint/server ownership and safe client configuration.
+- P2.9 Play Mode startup readiness / one-shot post-start actions.
+- P2.10 native test-run cleanup ownership following timeouts.
+- P2.11 nonblocking connection/status refresh.
+- P2.12 prefab override discovery and targeted apply/revert.
+- P2.13 file-backed server instructions with shared-server scope and trust requirements.
+- P2.8 preflight compile/domain-reload investigation remains a hypothesis requiring a Unity reproduction before changing the refresh strategy.
+
+No runtime implementation was made. The complete paginated fork inventory remains the blocking criterion for calling the overall audit exhaustive.
