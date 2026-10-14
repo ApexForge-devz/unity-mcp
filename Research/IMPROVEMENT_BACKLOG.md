@@ -59,7 +59,7 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 ### P1.1 FastMCP 4 / MCP 2026-07-28 protocol migration spike
 
-**Finding:** The server dependency is constrained to fastmcp >=3.0.2,<4; the existing manage_tools design changes tool visibility per session. The MCP 2026-07-28 specification removes protocol-level sessions and constrains list behavior, creating a compatibility issue for changing tool lists per session.
+**Finding:** The server dependency is constrained to fastmcp >=3.0.2,<4; the existing manage_tools design changes tool visibility per session. The current [MCP 2026-07-28 Tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) says tools/list must not vary per connection or as a side effect of other requests on that connection. The available set may change over time or vary by request authorization, and servers should order it deterministically. The modern protocol also retires the initialize/initialized handshake and Mcp-Session-Id. These are concrete compatibility constraints, not just a general dependency-age concern.
 
 **Recommendation — INVESTIGATE, then ADAPT:**
 - Create a compatibility spike that serves modern stateless protocol clients and supported legacy clients.
@@ -70,7 +70,7 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Acceptance tests:** modern stateless path; legacy handshake path; tool discovery before/after group selection; stable ordering; resources/prompts/auth/errors/cancellation; same intended permissions under every supported transport.
 
-**Sources:** [MCP 2026-07-28 announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/), [MCP specification changelog](https://modelcontextprotocol.io/specification/draft/changelog), [FastMCP v4 protocol notes](https://github.com/PrefectHQ/fastmcp/blob/main/dev-docs/v4-notes/protocol-2026.md), [Server dependency manifest](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/pyproject.toml), [tool-group management](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/manage_tools.py).
+**Sources:** [MCP 2026-07-28 Tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools), [MCP 2026-07-28 announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/), [FastMCP v4.0.0 release notes](https://github.com/PrefectHQ/fastmcp/releases/tag/v4.0.0), [FastMCP v4 protocol notes](https://github.com/PrefectHQ/fastmcp/blob/main/dev-docs/v4-notes/protocol-2026.md), [Server dependency manifest](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/pyproject.toml), [tool-group management](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/manage_tools.py), and the detailed [PROTOCOL_COMPATIBILITY.md](PROTOCOL_COMPATIBILITY.md).
 
 ### P1.2 Central result shaping, caps and continuation
 
