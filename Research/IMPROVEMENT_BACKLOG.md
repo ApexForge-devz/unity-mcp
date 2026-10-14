@@ -215,6 +215,17 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Sources:** [RunInBackgroundPlayGuard.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Services/RunInBackgroundPlayGuard.cs), [DOTS tool](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageDots.cs), [unknown-vs-zero summary](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/EntityCountSummary.cs).
 
+
+### P2.8 Test-run preflight domain-reload cost
+
+**Finding:** target run_tests currently calls preflight with wait_for_no_compile=true and refresh_if_dirty=true. If external asset changes make the editor dirty, preflight requests refresh with compile=request. The stale bgr fork proposes compile=none to avoid an unnecessary reload before tests, but its commit explicitly says the change could not be compiled/run in Unity.
+
+**Recommendation — INVESTIGATE with a reproducible Unity test fixture.** Do not change the compilation request solely because a fork made the change. Compare clean/dirty asset refresh, external script modification, import-only modification, domain reload count, and whether the test actually uses newly changed scripts. If Unity's refresh automatically compiles modified C# despite compile=none, document and test that contract; otherwise preserve compile readiness.
+
+**Acceptance tests:** dirty non-code asset before tests does not cause needless domain reload; dirty script asset is compiled before tests use it; preflight respects active test-run exclusion; timeout/disconnect leaves a clear state; run outcome records compile/reload status.
+
+**Source:** [Target preflight.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/preflight.py), [target run_tests.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/run_tests.py), [bgr change](https://github.com/bgr/unity-mcp/commit/11cfd4caac713c0b59846f2d0203e148e5977d7c).
+
 ### P2.5 Release/version/source alignment
 
 **Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.
