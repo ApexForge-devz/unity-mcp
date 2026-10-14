@@ -233,3 +233,43 @@ More generally, [EntityCountSummary.cs](https://github.com/The1Studio/unity-mcp/
 ### Summary judgment
 
 The1Studio is one of the most useful upstream-derived candidates found so far despite being 529 commits behind. Its top transferable ideas are checked writes/readback verification, broader SerializedProperty type handling, optional deterministic Play Mode input simulation, and explicit unknown-vs-zero diagnostics. Server-sharing and editor shutdown ideas should be compared to the target's already-existing instance/auth/ownership controls before any port.
+
+
+## 11. Additional small deltas found in the next fork-only compare pass
+
+### bgr/unity-mcp — two commits ahead, 1,311 behind
+
+Compare: [bgr/unity-mcp branch bgr-patches](https://github.com/bgr/unity-mcp/tree/bgr-patches) is 2 commits ahead and 1,311 behind CoplayDev beta on the compare snapshot. Its two unique commits are:
+- [Preflight avoids domain reload before tests](https://github.com/bgr/unity-mcp/commit/11cfd4caac713c0b59846f2d0203e148e5977d7c): changes the best-effort dirty-asset refresh in Server/src/services/tools/preflight.py from compile=request to compile=none.
+- [Auto-reconnect when server is reachable but the session is absent](https://github.com/bgr/unity-mcp/commit/975032ea1e95d9ed968e09ba71e79fd4a3ba01ce): starts the local bridge session when a previous session is not active but the local server is reachable.
+
+**What still differs from target beta:** target preflight currently uses compile=request in the run_tests gate, with wait_for_no_compile=true and refresh_if_dirty=true. Target McpConnectionSection.cs has improved debounce/orphan detection but does not contain the fork's AutoReconnectAsync path.
+
+**Disposition: INVESTIGATE, selectively.**
+- For preflight, measure whether compile=request causes a needless domain reload in the exact dirty-asset test-run scenario, but preserve a guarantee that newly changed C# compiles before test execution. The fork commit says it could not compile/run Unity tests for that change; do not treat its author explanation as reproduced proof.
+- For auto-reconnect, consider an explicit setting or a retry policy with a clear manual-disconnect override. The inspected condition reconnects whenever HTTP Local is selected, the local server remains running, no bridge session is active, and a toggle is not in progress. Without an explicit user-intent latch, it may fight an intentional “disconnect session but leave the server running” action. Test domain reload, server restart, manual disconnect, authentication failure and instance selection before adapting.
+
+### xOrfe/unity-mcp — two commits ahead, 635 behind
+
+Compare: [xOrfe/unity-mcp branch beta](https://github.com/xOrfe/unity-mcp/tree/beta) is 2 commits ahead and 635 behind. Its ahead changes update Antigravity's MCP config path for Windows and Linux to ~/.gemini/config/mcp_config.json.
+
+**Target status:** the current target's [AntigravityConfigurator.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Clients/Configurators/AntigravityConfigurator.cs) already uses ~/.gemini/config/mcp_config.json for Windows, macOS and Linux and is named “Antigravity 2.0”. Thus the configuration-path changes are **already superseded in target beta**; no port is needed. The fork commit itself requests a follow-up check for macOS/Linux, which reinforces that these paths are client-version-sensitive and need version-specific tests.
+
+### Further stale candidates
+
+Additional compared refs with no ahead commits:
+- TigerHix/unity-mcp: beta 674 commits behind.
+- chanqueenieolivia-ui/unity-mcp: beta 529 behind.
+- nathanandrewturner/unity-mcp: master 685 behind.
+- FaintFlower/unity-mcp: beta 283 behind.
+- nicecapj/unity-mcp: beta 1,124 behind.
+- Kurumioi/unity-mcp: beta 494 behind.
+- moskalabs/unity-mcp: beta 628 behind.
+- SummerYch/unity-mcp: beta 950 behind.
+- Shahriar-Soft-Eng/unity-mcp: beta 828 behind.
+- ahmetbolukoglu/unity-mcp: beta 1,309 behind.
+- badjano/unity-mcp: beta 712 behind.
+- myeagle17/unity-mcp_unity2020: beta 494 behind.
+- Scriptwonder/unity-mcp and ZhangJiaLong90524/unity-mcp-fork: identical on compared refs.
+
+These results refer to compared default branch refs only. They do not prove there are no useful changes on non-default branches, and the current compare set remains far smaller than the upstream fork population.
