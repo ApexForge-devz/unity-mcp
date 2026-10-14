@@ -692,3 +692,20 @@ Reviewed [sabriboughanmi/Unity-MCP-MemoryProfiler](https://github.com/sabribough
 Official documentation caveat: Unity's current [TakeSnapshot API](https://docs.unity.com/en-us/engine/6000.5/script-reference/unity/profiling/memory/memoryprofiler/takesnapshot) describes capture destination/target semantics, including connected Player behavior, and notes native allocation-site/stack fields can depend on target build support. A runtime memory-budget investigation should favor a development Player on the target device; an Editor capture is not a Play-Mode-only memory snapshot. Unity also advises keeping large `.snap` snapshots out of source control ([snapshot concepts](https://docs.unity.cn/Packages/com.unity.memoryprofiler@1.1/manual/snapshots-concepts.html)).
 
 Added [FORK_MEMORY_PROFILER_REVIEW.md](FORK_MEMORY_PROFILER_REVIEW.md), linked it in README, and replaced P2.4 with source-backed adaptation gates. This remains a documentation/source-review pass only.
+
+
+## Upstream PR #1460 — native test-run cleanup review — 2026-10-14
+
+Compared target beta (commit 142ea0af4890337f0ff6658df61db23982313717) to PR #1460's latest inspected head 25be22066fdb11fed07948659462cf28c89279bf. The PR remains open/unmerged at review time.
+
+The PR addresses a real ownership bug: a caller-side test initialization timeout does not mean the native Unity test run has stopped. Its run-GUID correlation, pre-execution throttling control, timeout state persistence, cleanup monitor and unknown-state fail-closed behavior are worth adapting. Source changes were reviewed in TestJobManager, TestRunnerService, TestRunnerNoThrottle and lifecycle tests.
+
+Residual cases in UPSTREAM_PR_1460_NATIVE_TEST_CLEANUP_REVIEW.md:
+- Private Test Framework reflection differs across versions; runtime evidence is on Unity 6000.3.20f1/Test Framework 1.6.0, while older 1.1.x runtime behavior and other matrix legs remain unverified.
+- A run reported as active forever before RunStarted can remain locked; the retry window bounds query failures, not positive-active-with-no-progress.
+- The monitor's outer catch detaches itself on a downstream exception; test cleanup/finalization faults so state cannot become an invisible permanent lock.
+- clear_stuck=true must not remove the only native run association such that a domain reload permits a new run while the original may still be active.
+
+The PR reports 1,575 Python tests passed with 18 skipped, relevant local EditMode/PlayMode tests passed on macOS Unity 6000.3.20f1, and compile checks in a fork workflow. Other Unity matrix legs and licence-dependent fork Unity/E2E tests were skipped. These are author-reported results, not an independently run validation.
+
+Recommendation: adapt the ownership state model after explicit supported Test Framework version tests, with acceptance coverage for pre-RunStarted hangs, monitor exceptions and clear-stuck/domain-reload. Source review only; no Unity tests were run.

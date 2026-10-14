@@ -376,6 +376,11 @@ Do not copy the package unchanged: the reflection contract targets Unity interna
 
 **Source:** [Upstream PR #1460](https://github.com/CoplayDev/unity-mcp/pull/1460).
 
+
+**Current upstream status/source audit (2026-10-14):** [PR #1460](https://github.com/CoplayDev/unity-mcp/pull/1460) remains **open / unmerged** and its base SHA 142ea0af4890337f0ff6658df61db23982313717 matches the target beta ref. The latest PR head inspected was 25be22066fdb11fed07948659462cf28c89279bf. Its main approach is sound, but adoption remains conditional on private Test Framework API compatibility and residual monitor/recovery cases. Confirmed-active-before-RunStarted can remain locked without hitting the query-failure timeout; the monitor's outer catch detaches itself if a later cleanup/finalization operation throws; and clear_stuck=true must not erase native run correlation in a way that permits a new run after reload. See [UPSTREAM_PR_1460_NATIVE_TEST_CLEANUP_REVIEW.md](UPSTREAM_PR_1460_NATIVE_TEST_CLEANUP_REVIEW.md).
+
+**Adoption gate:** distinguish the MCP job's failed/timeout status from native run active/unknown/cleanup-pending state. Preserve native GUID ownership across domain reload, retain the lock for unknown states, and test the recovery contract for Test Framework versions where private activity/cancellation APIs cannot be resolved. PR-reported evidence is Unity 6000.3.20f1/Test Framework 1.6.0; older 1.1.x API variants were source-checked but not runtime-verified, and several Unity CI matrix legs were skipped.
+
 ### P2.11 Safe, nonblocking connection/status refresh in the Editor UI
 
 **Finding:** connection/window focus polling can involve TCP probes, executable discovery, environment/uv validation and client-config file reads. If run synchronously on the Editor main thread, simply opening/focusing the MCP window can delay rendering or tool dispatch. Upstream PR #1465 supplies a testable helper that coalesces requests, caches results briefly, discards stale generations and avoids UI writes after window detach.
