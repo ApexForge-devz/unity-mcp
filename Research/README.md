@@ -43,6 +43,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Research log and coverage gaps](RESEARCH_LOG.md)
 - [Fork candidate register and search coverage](FORK_CANDIDATE_REGISTER.md)
 - [Specialist workflow source review](SPECIALIST_WORKFLOWS.md)
+- [MCP modern/legacy protocol compatibility plan](PROTOCOL_COMPATIBILITY.md)
 
 ## Important interpretation rules
 
