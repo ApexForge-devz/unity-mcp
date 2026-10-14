@@ -18,7 +18,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Record methodology, evidence standards, and scope boundaries.
 - [x] Start an ecosystem inventory using several GitHub repository searches.
 - [x] Compare the target beta head against upstream beta; both matched the observed HEAD SHA at the snapshot date.
-- [x] Compare additional candidate fork heads, including a 163-ahead/529-behind The1Studio branch, and identify useful code-level fixes alongside stale mirrors.
+- [x] Compare additional candidate fork heads, including The1Studio, bgr and xOrfe; classify code-level deltas and superseded/stale snapshots.
 - [x] Review source samples from selected independent implementations.
 - [x] Produce an initial source-linked ranked improvement backlog.
 - [x] Expand the candidate register with additional fork searches and specialist repositories.
@@ -26,6 +26,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Review an independent operation-level facade's catalog, compaction, idempotency, and result-store source/tests.
 - [x] Record remaining limitations, commits and next actions in a dated research log.
 - [x] Cross-check the target's open draft PR against relevant upstream PRs and current GitHub Actions results.
+- [x] Inspect additional upstream lifecycle/configuration PR patches and add source-informed backlog entries for startup readiness, test cleanup, nonblocking UI refresh, config preservation, and prefab overrides.
 - [ ] Enumerate and classify direct forks of the target/upstream using a reproducible complete listing.
 - [ ] Systematically review meaningful forks-of-forks and all fork candidates with ahead-of-upstream code.
 - [ ] Diff the high-value candidates file-by-file and map changes to all corresponding target handlers/tests.
