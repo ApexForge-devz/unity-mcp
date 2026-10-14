@@ -342,3 +342,31 @@ Items requiring hardening or reproducible validation:
 - Existing modal EditMode tests expressly state they cannot raise a real modal because it would stall the test runner. The previous GitHub Actions run skipped actual Unity tests and bridge smoke. Actual Windows Editor + bridge E2E is therefore a required gate, not an optional polish pass.
 
 Added P1.8 to the backlog for exact modal identity, queue backpressure and mtime-change handling, plus an explicit native Windows merge gate. No runtime code was changed or executed.
+
+
+## Continued source mapping — target job/response/dispatcher contracts (2026-10-14)
+
+Added [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md), combining source evidence from Isuzu UnityMCP, Funplay, PerfAgent-Unity, Hatayama's official-bridge CLI, Yecats' official-stack toolkit, and nowsprinting's Rider extension.
+
+A comparison against the target's actual beta sources found:
+- Target does **not** lack asynchronous testing jobs: TestJobManager persists Test Runner state across domain reload, caps retained jobs at 10 and persisted failure details, and GetTestJob polls the existing job. AssetGen/package/build also have specialized jobs. The recommendation is not to add a duplicate global job system blindly; audit shared semantics and paths.
+- Target's generic Response defines PendingResponse, but the inspected sources don't show a single universally used job ID/result/polling contract for every async tool.
+- TransportCommandDispatcher already does per-request cancellation-token registration and checks cancellation before calling the handler. A command already executing may still have side effects after its caller stops waiting. This is a necessary unknown-outcome distinction.
+- ProcessQueue collects all pending non-executing requests into one ready list and loops over the entire list in a single Editor update. No hard admission cap by pending count/serialized bytes or time/item budget was apparent in the inspected dispatcher. Added P2.15 to characterize and potentially add backpressure/fairness; preserve existing FIFO/single-main-thread semantics.
+- A complete source survey did not find one universal serialized-result cap applied at the final transport boundary. Selected tools and TestJobManager have their own limits, but universal enforcement remains a hypothesis to validate across WebSocket, HTTP, stdio/CLI and job polling. P1.2 now calls out original-tool budget preservation on asynchronous polling.
+
+Additional reusable findings:
+- Isuzu tests prove atomic cancel-before-start, job receipts and response-size enforcement, but its protocol handler only lists support through 2025-11-25; use its job/result contracts, not the modern protocol implementation.
+- Funplay's strict filesystem regex profile provides differentiated local guardrails but still cannot sandbox arbitrary C#; it must not replace a server authorization policy.
+- PerfAgent protects prior Profiler state and restores after reload, bounds history, reports insufficient/no samples honestly and does not perform automated fixes through MCP.
+- Hatayama's CLI and Yecats' toolkit are specific to the official Unity AI Assistant bridge; adapt diagnostic/precondition UX only if targeting that stack.
+- nowsprinting's incident motivates an E2E test during compilation/domain reload and a generation/identity check after reconnect rather than trusting a stale non-null connection.
+
+New docs/backlog commits in this tranche:
+- `66ae21784d692bf707413172e6f93fce69b981e2` — operational reliability source review.
+- `8ca6af544062d8f88d9540c1517a26e322a326e5` — alternatives comparison extended.
+- `566c4e8a2face4926c4b5daee7d89e2e6f60242d` — candidate register extended.
+- `02c86e5052d238ebec70ed322758b751770b7307` — result cap and profiler integrity backlog.
+- `c0791513b1c32f966324561ebe1b0d104b20785f` — explicit target job/dispatcher comparison.
+
+No Unity tests or runtime benchmarks were run during this source-only tranche.
