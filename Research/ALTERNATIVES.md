@@ -228,3 +228,68 @@ It uses action-based typed tools, small feature-block operations and a result en
 **Usefulness:** For optional XR provider integrations, test idempotent attach/upsert operations and represent unsupported runtime capability explicitly.
 
 **Hard restriction:** its C# source carries a proprietary PICO Technology notice stating reproduction is forbidden without prior written permission. Treat as reference-only; do not copy source code into Unity-MCP. Reimplement generic ideas independently and only integrate with appropriate licensed SDK/dependencies.
+
+
+## 12. Vangardo/unity-mcp-efficient — operation-level facade with bounded result recovery
+
+Repository: [Vangardo/unity-mcp-efficient](https://github.com/Vangardo/unity-mcp-efficient). This is an independent companion/facade, not a code fork whose Unity Editor implementation replaces CoplayDev. It connects to the existing Unity MCP server as an MCP client.
+
+**Source inspected (main):**
+- [README / overview and benchmark claims](https://github.com/Vangardo/unity-mcp-efficient/blob/main/README.md).
+- [Operation catalog](https://github.com/Vangardo/unity-mcp-efficient/blob/main/src/unity_mcp_efficient/catalog.py), blob 9f9ef1fe487a2a5b70b3a9e1c119108ae930f591.
+- [Output compactor](https://github.com/Vangardo/unity-mcp-efficient/blob/main/src/unity_mcp_efficient/compact.py), blob 774e05f05559a6f1dcb078ba49889db8c3016a3e.
+- [Bounded/durable result store](https://github.com/Vangardo/unity-mcp-efficient/blob/main/src/unity_mcp_efficient/result_store.py), blob 86aa87025b663068e3a4c2eec3a372c30b83f9d0.
+- [Facade server](https://github.com/Vangardo/unity-mcp-efficient/blob/main/src/unity_mcp_efficient/server.py), blob 6c78c37b8f55d43fbe16f9456ed3dda0aeeeb63e.
+- [Backend adapter](https://github.com/Vangardo/unity-mcp-efficient/blob/main/src/unity_mcp_efficient/backend.py), blob 0b7fb0d9679bcea34f445ff77ad2a8b4f70ac656.
+- [Batch/workflow primitives](https://github.com/Vangardo/unity-mcp-efficient/blob/main/src/unity_mcp_efficient/workflow.py), blob 2c009473bb0fb8f200b4ee880f66c7cc64d6d647.
+- [Benchmark method and raw values](https://github.com/Vangardo/unity-mcp-efficient/blob/main/BENCHMARKS.md), blob b676abffd590d14dce1fcee03412406661f4ccc4.
+- [Catalog tests](https://github.com/Vangardo/unity-mcp-efficient/blob/main/tests/test_efficient_catalog.py), blob 76bd678c13c325a5c6f861304099fe3e07a4cd6d.
+- [Compactor tests](https://github.com/Vangardo/unity-mcp-efficient/blob/main/tests/test_efficient_compact.py), blob e6594d630eae109733f0776673cf2eac073f7aca.
+- [Result-store tests](https://github.com/Vangardo/unity-mcp-efficient/blob/main/tests/test_efficient_result_store.py), blob 3b3da5aa05ef6fc9dacd929b1c67587dba65fe1a.
+- [Facade server tests](https://github.com/Vangardo/unity-mcp-efficient/blob/main/tests/test_efficient_server.py), blob c25bac3fe6fb4aedb0e6d0b15f62174677b74ce7.
+
+### What it does
+
+The facade exposes six stable model-visible tools: search_capabilities, call_operation, get_result, batch_operations, inspect_unity, and get_viewport. It obtains the backend tool schemas and builds an operation-level catalog, expanding known action values into names like scene.get_active and gameobject.create, with focused argument hints and optional full schemas. Calls are then mapped back to existing upstream tool/action pairs.
+
+It also adds:
+- A diagnostic-first output compactor that retains error/status/count/name-like fields, compacts large arrays and long text, reports truncation/omitted counts, and includes a recovery handle.
+- A result store with TTL, item/byte limits, compression and optional SQLite durability, allowing result pages/JSON-pointer selection without repeating the Unity action.
+- Explicit request_id receipts that fingerprint operation and arguments so a repeated mutation request can return a prior result instead of executing the mutation twice.
+- A bounded declarative workflow layer (call, select, assert, poll, foreach, emit) with reference resolution. It intentionally avoids arbitrary code evaluation inside workflow definitions.
+- A benchmark suite and deterministic catalog tests, including English/Russian query retrieval cases, action-specific schemas and output compaction.
+
+### Interpreting the reported efficiency numbers
+
+Its README/BENCHMARKS.md reports, against upstream MCP for Unity v10.1.0 / commit c14de1e6 on 2026-08-24:
+- visible tool count 48 to 6;
+- serialized schema payload 93,119 to 3,657 characters (reported reduction 96.07%);
+- synthetic 250-object hierarchy payload 628,110 to 875 characters (reported reduction 99.86%);
+- action argument fields 5,566 to 1,798.
+
+The benchmark code is published and was inspected, which makes the results reproducible in principle. They are not independent measurements from this research session. Token estimates divide character count by four, rather than using a model tokenizer. The hierarchy case is a synthetic stress fixture with repeated 300-vertex arrays; it does not imply that every real Unity response shrinks by 99.86%. Its 15 catalog-search cases form a small regression set, not a broad retrieval-quality study. The project reports a live smoke that inspected a real open editor without mutating the project, but we did not run it.
+
+### Useful parts to adapt
+
+**ADAPT / INVESTIGATE:**
+1. **Separate capability search from argument schema disclosure.** Keep common, safety-critical operations first-class while letting an agent look up a compact operation descriptor and ask for full schema only when required.
+2. **Stable named actions.** Expose operation-level intents and action-specific argument fields rather than a huge generic manager schema with unrelated parameters. This could be implemented within our existing tool registry rather than forcing users to install a second MCP server.
+3. **Consistent response compaction.** A central result normalizer is more useful than description compaction alone. It can preserve diagnostics, counters, state markers, first project stack frame, and shape information while capping serialized outputs.
+4. **Result handles.** Store big results behind opaque, expiring IDs and serve bounded JSON Pointer / offset pages rather than rerunning the Unity operation.
+5. **Mutation idempotency.** An explicit request ID plus canonical argument fingerprint provides a pattern for reconciling timeouts. Keep this separate from blind automatic retry; a repeated ID with different arguments should fail.
+6. **Model-visible workflow primitives.** Declarative bounded select/assert/poll/foreach/emission can reduce round-trips for repetitive inspection without introducing arbitrary C# execution.
+
+### Risks and gaps to validate before adoption
+
+- **Catalog drift:** the operation schema is partially generated from upstream schemas but also has action allowlists and required-parameter rules. Upstream renames/new actions can be omitted or misclassified. Run schema-parity tests against each supported Unity MCP release, and fail discovery loudly for unclassified actions.
+- **Ranking quality:** the evaluation set is small, so fuzzy search could silently resolve an unsafe/wrong mutation. Make exact operation names deterministic, return scores/rationale/candidates for ambiguous phrases, and require explicit selection when matches are close. Never auto-execute merely because a text query has a top-ranked result.
+- **Universal call tool annotations:** the inspected call_operation MCP annotation is conservative/destructive for all operation calls, even though the catalog knows whether an underlying operation mutates. This may trigger approval prompts for reads and obscures per-operation policy. Preserve the underlying operation's read-only/destructive/idempotent classification through dispatch.
+- **Storage budget semantics:** ResultStore compresses serialized results and evicts by compressed stored bytes, but preserves a single newest entry even if it exceeds the nominal max_bytes. The backend result is materialized before compaction/store, so an extremely large response can still create a large transient memory allocation. Add a pre-serialization ceiling, per-result expanded-size cap, and clear behavior for oversized artifacts.
+- **Cross-client/project scope:** the sampled get_result retrieves by result ID and the idempotency receipt table is keyed by caller-provided request_id; the reviewed API does not visibly bind entries to authenticated principal/session/project. Random result IDs help against guessing, but a shared/remote deployment should bind result/receipt IDs to caller and Unity instance, and test cross-project isolation.
+- **Idempotency concurrency:** current tests prove sequential duplicate suppression. The call flow reads a receipt, invokes the backend, then records the receipt; concurrent requests with the same request_id could both execute before a receipt is created. Inspect this explicitly and add an atomic in-flight reservation if mutations could otherwise execute twice.
+- **Full results can still be expensive:** output_mode=full may return an entire value when within the clamped budget, and the storage pipeline accepts the raw value before the output is compacted. Retain hard universal ceilings and avoid logging or persisting secrets accidentally.
+- **Additional process to operate:** this is a second MCP server that must stay synchronized with the upstream Unity MCP endpoint/version; it can duplicate availability, configuration, auth and debugging surface. Prefer porting the minimal patterns into the existing server unless standalone-facade distribution is an explicit goal.
+
+### Recommendation
+
+**High-priority design reference for context/results; do not adopt wholesale as a new always-required service.** Benchmark its approach against the existing feature/unity6-enhancements schema-compaction work. The research question is not “six tools versus dozens” in isolation; it is whether stable typed discovery, safe operation routing, compact results and recoverable full output improve real task success while preserving permissions and correct mutation behavior. A meaningful comparison should measure schema bytes, retrieval accuracy, result bytes, extra round-trips, mutation duplicates, task success, and performance against the current beta backend.
