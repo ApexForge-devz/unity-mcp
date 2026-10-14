@@ -320,3 +320,25 @@ Added [DRAFT_PR_CODE_REVIEW.md](DRAFT_PR_CODE_REVIEW.md) after direct inspection
 - New research commit: 0d0bf84dcc2915ed2fc3002a8ba63c8dc8eb70a6 added the source-level code review. The following README and backlog commits link it and add testable criteria.
 
 No runtime source changed and no new test was run as part of this source-only review.
+
+
+## Continued review — modal liveness and scene external-change guard (2026-10-14)
+
+Added [DRAFT_PR_MODAL_LIVENESS_REVIEW.md](DRAFT_PR_MODAL_LIVENESS_REVIEW.md) after inspecting ModalDialogProbe, MainThreadHeartbeat, EditorLivenessProbe, TransportCommandDispatcher, answer_dialog.py, SceneExternalChangeGuard and their EditMode/Python tests.
+
+Confirmed sound patterns:
+- Only the Editor update loop writes the heartbeat; liveness/answer commands bypass the ordinary main-thread queue.
+- Modal scans run off-thread, return a snapshot with its age, have explicit window/child/time limits and use SendMessageTimeout for window text.
+- Only discovered native Win32 dialog buttons are answerable; EditorWindow.ShowModal and unidentified modal windows are not guessed.
+- Button clicks are serialized and the original native dialog HWND is checked for closure.
+- Dispatcher tests assert FIFO/no overlap and that cancellation of an active call does not release its slot while the handler still executes.
+- SceneExternalChangeGuard refuses unsafe multi-scene reloads and exposes auto/reload/keep_editor conflict-resolution choices.
+
+Items requiring hardening or reproducible validation:
+- answer_dialog allows a button press without expect_title. Its fresh capture could target a different modal that appeared since the earlier read, potentially clicking a generic button such as OK/Cancel. Recommend required expected identity or an opaque short-lived snapshot ID.
+- File change detection uses only GetLastWriteTimeUtc with the strict condition diskMtime > baseline. External rewriting with preserved/equal/older timestamps can be missed. This is a code-derived hypothesis and needs a fixture/reproducer before changing the design.
+- Dispatcher queue uses a Dictionary and FIFO queue and has cancellation support, but no explicit hard admission cap is visible in the reviewed portion; test peak queue memory and backpressure during sustained main-thread stalls.
+- answer_dialog is marked destructive even for its read-only “button omitted” mode. This is conservative but may trigger approval on inspection calls; benchmark client behavior before splitting into separate read and answer operations or changing annotations.
+- Existing modal EditMode tests expressly state they cannot raise a real modal because it would stall the test runner. The previous GitHub Actions run skipped actual Unity tests and bridge smoke. Actual Windows Editor + bridge E2E is therefore a required gate, not an optional polish pass.
+
+Added P1.8 to the backlog for exact modal identity, queue backpressure and mtime-change handling, plus an explicit native Windows merge gate. No runtime code was changed or executed.
