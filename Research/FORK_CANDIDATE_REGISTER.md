@@ -192,3 +192,19 @@ Search query: `unity-mcp fork:only pushed:>2026-01-01` returned a broad page con
 | [zw0713/unity-mcp](https://github.com/zw0713/unity-mcp) | beta | 2026-05-18 | 0 ahead; 674 behind | Stale mirror on default ref |
 
 The compare API's largest values are snapshots as returned by GitHub on this query; “zero ahead” is the important finding for the current default refs, not proof that a fork has no useful non-default branches. These are candidate-level checks, not an exhaustive fork inventory.
+
+
+## J. Deep source review — ykh09242 AssetGen security/lifetime work (2026-10-14)
+
+[ykh09242/unity-mcp:beta](https://github.com/ykh09242/unity-mcp/tree/beta) is a confirmed direct fork of CoplayDev. Its compare endpoint reports a large ahead delta with many unrelated web/workflow changes, so do not merge the fork wholesale. The directly inspected Unity-specific changes are highly relevant to the target's existing P0 ZIP resource gap:
+
+| Changed area | Fork source evidence | Result against target beta | Decision |
+|---|---|---|---|
+| Provider artifact URL and DNS policy | [AssetDownloadPolicy.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/AssetDownloadPolicy.cs), blob bd8c0b7fecdfc05131f75cd1a94839b013049bc2 | Target lacks this file/policy | Adapt after verifying official CDN hosts and Unity TLS behavior |
+| DNS-pinned manual redirect downloader | [AssetDownloadTransport.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/AssetDownloadTransport.cs), blob 0ffa58368fda6cb1a136614c59c6bf37ea8a9b9e | Target artifact URLs flow through ordinary UnityWebRequest; no provider marker/pinned IP path | Adapt design; runtime TLS/SNI integration tests are mandatory |
+| Provider API response cap | [BoundedDownloadHandler.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/BoundedDownloadHandler.cs), blob d7a30776afec2677fc4c0defe404882ce14809ec | Target uses unbounded DownloadHandlerBuffer in inspected transport path | High-priority adaptation |
+| ZIP metadata preflight | [ZipMetadataPreflight.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/ZipMetadataPreflight.cs), blob 31e03771e79a4e4a418da7801083d25c3e9b2b28 | Target lacks pre-archive central-directory/ZIP64 consistency caps | Adapt |
+| Expanded archive budgets | Fork [SafeZipExtractor.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/SafeZipExtractor.cs), blob f9b48ec349e608094c79125e8d48f6988720d860 | Target has Zip-Slip and optional extension filtering, but no clear entry/byte/ratio quotas | Adapt |
+| Async payload lifetime tests | [AssetGenConsumedTaskLifetimeTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/AssetGenConsumedTaskLifetimeTests.cs), [AssetGenProviderPayloadLifetimeTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/AssetGenProviderPayloadLifetimeTests.cs), [AssetGenSubmissionCaptureLifetimeTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/AssetGenSubmissionCaptureLifetimeTests.cs) | Target's reviewed test tree has no equivalents with the same coverage | Adapt the regression pattern |
+
+The full source-level review and exact blob hashes are in [FORK_YKH09242_ASSETGEN_SECURITY.md](FORK_YKH09242_ASSETGEN_SECURITY.md). Tests are committed in that fork but were not run in this research session. Treat its download-transport TLS/Host/SNI implementation as a high-scrutiny design; do not claim its provider-host assumptions are independently verified until the official documentation and actual live redirects are checked.
