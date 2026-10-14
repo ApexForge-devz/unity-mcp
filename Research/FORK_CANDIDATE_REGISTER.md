@@ -157,3 +157,18 @@ Other cross-owner compare calls returned 404 for a few candidates (including a-n
 |---|---|---|---|
 | [bgr/unity-mcp:bgr-patches](https://github.com/bgr/unity-mcp/tree/bgr-patches) | 2 ahead, 1,311 behind | Preflight refresh uses compile=none to avoid a domain reload; connection section adds auto-reconnect when the local server is reachable but no session is active | Investigate narrowly. Compile-none needs test-before-adoption; auto-reconnect needs a manual-disconnect override and lifecycle tests. |
 | [xOrfe/unity-mcp:beta](https://github.com/xOrfe/unity-mcp/tree/beta) | 2 ahead, 635 behind | Antigravity Windows/Linux config path changes | Already superseded: target beta now uses Antigravity 2.0 path ~/.gemini/config/mcp_config.json for Windows/macOS/Linux. |
+
+
+## H. More independent/adjacent repositories source-reviewed (2026-10-14)
+
+| Repository | Relationship | Source review / useful pattern | Adoption status |
+|---|---|---|---|
+| [isuzu-shiranui/UnityMCP](https://github.com/isuzu-shiranui/UnityMCP) | Independent integrated Editor MCP + CLI | Deferred jobs, cancellation before start, bounded per-tool result size, explicit security of JSON-defined C# tools | High-value reliability reference; current protocol implementation only lists support through 2025-11-25 |
+| [FunplayAI/funplay-unity-mcp](https://github.com/FunplayAI/funplay-unity-mcp) | Independent Editor MCP | Optional strict filesystem safety rules and Core/Full export profiles with deterministic ordering | Policy UX/test pattern only; regex rules are not a sandbox; fixed Core includes execute_code |
+| [MothCyan/PerfAgent-Unity](https://github.com/MothCyan/PerfAgent-Unity) | Optional performance diagnostic plugin + MCP bridge | Profiler ownership restoration, bounded capture history, data provenance, minimum-sample gates, golden-rule tests, read-only diagnostics | Valuable specialist workflow; do not embed entire plugin by default |
+| [hatayama/unity-ai-cli-bridge](https://github.com/hatayama/unity-ai-cli-bridge) | CLI/companion for Unity's official AI Assistant bridge | status/doctor/help/recipes, bridge discovery and heartbeat diagnostics, direct named pipe/Unix socket transport without patching PackageCache | Adapter/UX reference only; different bridge stack |
+| [hatayama/unity-cli-loop](https://github.com/hatayama/unity-cli-loop) | Companion CLI/workflow | Agent loop and recipes around official bridge | README/source lead; inspect further only if supporting official Unity AI Assistant |
+| [Yecats/unity-mcp-toolkit](https://github.com/Yecats/unity-mcp-toolkit) | Custom tool package for Unity AI Assistant MCP | Optional Input System/Recorder groups, Play Mode mutation guard, default Game View payload downscale | Official-stack extension, not a direct target patch |
+| [nowsprinting/mcp-extension-unity](https://github.com/nowsprinting/mcp-extension-unity) | JetBrains Rider extension | Source-level report of stale connection model during compilation/domain reload; realistic E2E test that invokes during compilation | Test design reference only; Rider RD APIs are not portable |
+
+These entries are adjacent implementations or toolkits, not direct forks of CoplayDev unless ancestry is demonstrated. They are added to the broader ecosystem survey and should not inflate the count of direct forks.
