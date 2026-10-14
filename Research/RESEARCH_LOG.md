@@ -748,3 +748,20 @@ Reconciled [PR #1463](UPSTREAM_PR_1463_PLAY_STARTUP_REVIEW.md) with the agent's 
 Recommended workflow if the readiness milestone is adopted: edit the persistent generator script → compile/reload → regenerate/save the declared output scene → wait for `first_frame` → capture a composited Game View image → run targeted, read-only assertions. Use wait-only mode by default. Do not move scene creation or repairs into the optional transient `on_ready_code` body; at most use it for bounded read-only assertions. When the startup response is lost or its outcome is unknown, poll the same job ID on the same Unity instance instead of resending the action.
 
 Adoption is conditional on the PR review's identified caveats: bounded request-ID tombstones, a stable route handle on lost initial response (especially with multiple Editors), and tests for uncertain execution. This cross-link is a research/workflow change only; no runtime source was changed.
+
+
+## Upstream PR #1465 — async Editor window refresh source audit (2026-10-15)
+
+Reviewed latest PR head `30b5693cb4e45c7d8714b58cc95e62749126d31b` against the target beta base `142ea0af4890337f0ff6658df61db23982313717`. It remains open/unmerged.
+
+**Current target source evidence:**
+- `PathResolverService.GetUvxPath()` may synchronously run executable validation through `ExecPath.TryRun("--version")` with a 5-second timeout and perform PATH candidate discovery.
+- `McpClientConfigSection.RefreshClientStatus()` calls status checks synchronously for non-Claude clients; the check reads client configuration and may auto-write a mismatch when `attemptAutoRewrite` is left at its default true.
+- `McpAdvancedSection.UpdatePathOverrides()` invokes synchronous UVX path resolution.
+- `McpConnectionSection.UpdateStartHttpButtonState()` performs a local-server reachability probe directly in the UI update path.
+
+**Candidate patterns worth adapting:** capture Editor/EditorPrefs settings on the main thread, perform process/filesystem/network checks on a worker, operate on copied status models, use `attemptAutoRewrite=false` for background inspection, coalesce duplicate work, cache successes with TTL, and reject stale results before applying them on the Editor thread. Its tests cover slow subprocess/TCP paths, editor update continuity, stale requests, detach/reattach, read-only config checks and worker exceptions.
+
+**Hardening gap noted in source:** `EditorAsyncRefresh<T>.Poll()` evaluates `isCurrent()` outside its try/catch; the cache-hit path also calls the current predicate and result callback without that boundary. It caches the result before the UI apply callback returns, so after an apply exception the meaning of a cache hit is ambiguous. Added these as adoption gates, not claims of a reproduced failure. Also retain explicit subprocess/operation timeouts; invalidated worker results are ignored, not cancelled.
+
+**Decision:** ADAPT selectively at P2 operational-reliability priority. This helps the Editor keep pumping while an agent compiles/regenerates/validates a scene; it does not add or replace scene-authoring tools. Author-reported tests: 102 related EditMode tests on Unity 6000.3.20f1/Test Framework 1.6.0 (macOS), 1,575 Python tests with 18 skipped and cross-platform C# compile checks. These are PR author claims, not independent validation; the PR body says several Editor matrix/runtime legs were not run. No tests were run during this review.

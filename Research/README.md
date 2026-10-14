@@ -70,6 +70,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [GameObject deletion and Undo review — deferred for this agent workflow](GAMEOBJECT_DELETE_UNDO_REVIEW.md)
 - [Deterministic script-first scene authoring workflow](DETERMINISTIC_SCENE_AUTHORING.md)
 - [Runtime startup readiness proposal review](UPSTREAM_PR_1463_PLAY_STARTUP_REVIEW.md)
+- [Asynchronous Editor window refresh proposal review](UPSTREAM_PR_1465_ASYNC_WINDOW_REFRESH_REVIEW.md)
 - [Deterministic scene-generator lifecycle source audit](DETERMINISTIC_GENERATOR_LIFECYCLE_REVIEW.md)
 - [Existing scene visual validation capability audit](SCENE_VISUAL_VALIDATION_AUDIT.md)
 - [MCP modern/legacy protocol compatibility plan](PROTOCOL_COMPATIBILITY.md)

@@ -249,6 +249,8 @@ Compiler-result refinement: use Unity's `CompilationPipeline.assemblyCompilation
 
 **Source pattern:** [KitWright EditorThreadHelper.cs](https://github.com/kitwright/unity-mcp/blob/main/Editor/Threading/EditorThreadHelper.cs).
 
+**Upstream PR #1465 source audit (2026-10-15):** [UPSTREAM_PR_1465_ASYNC_WINDOW_REFRESH_REVIEW.md](UPSTREAM_PR_1465_ASYNC_WINDOW_REFRESH_REVIEW.md) confirms the target's client-status reads, UV executable validation and local HTTP reachability checks still have synchronous Editor-thread paths. The PR proposes a worker/captured-context/cached-result pattern and makes background status refresh read-only. **Decision: ADAPT selectively after focused validation**, with additional guards/tests for a throwing current-request predicate and cache/application callback failure. PR #1465 remains open/unmerged against the reviewed beta baseline; no Unity tests were run by this research pass.
+
 ### P2.2 Asset dependency/reference analysis
 
 **Target-source finding:** target **ManageAsset.GetAssetData** (blob **69aaf53cc93a0b638d5a10139f4751dc42c13787**, around lines 1034–1120) returns asset identity and optional preview; it still has an explicit TODO for dependencies/importer metadata. The inspected EditMode/Tools directory listing has no clearly named dependency-analysis suite. General asset CRUD/search should not automatically embed graph data because dependency closures can be large.
