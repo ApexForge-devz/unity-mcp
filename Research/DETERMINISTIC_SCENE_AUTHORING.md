@@ -109,6 +109,16 @@ The general MCP product can retain its existing direct-mutation APIs for other c
 - Target [`execute_code.py`](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/execute_code.py) and [`ExecuteCode.cs`](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteCode.cs), which expose transient in-memory code execution rather than persistent generator storage.
 
 
+
+
+## Runtime Play Mode readiness
+
+The current `beta` baseline's `manage_editor(action="play")` acknowledgement does **not** prove that the active scene has completed startup, `Start` has run, or a full frame has advanced. Do not infer runtime readiness from that acknowledgement, and do not use a fixed sleep as the correctness contract.
+
+Upstream [PR #1463](UPSTREAM_PR_1463_PLAY_STARTUP_REVIEW.md) proposes an explicit `wait_until="first_frame"` milestone, a request/job ID, and a status poll after timeouts or lost replies. It remains open/unmerged in the reviewed baseline, so treat this as an adoption recommendation rather than an available current-beta tool. If adapted, use the wait-only mode by default: regenerate/save the scene first, enter Play Mode and wait for first-frame readiness, then capture the composited Game View and run narrow read-only checks.
+
+Do **not** move scene creation or repair into `on_ready_code`; it is a transient C# body, not the persistent generator source. If a post-startup body is supported and necessary, limit it to bounded assertions/diagnostics. A timeout or lost response must be reconciled by the original job/request ID and the same Unity instance; never resubmit the startup code as a retry. Respect the PR review's bounded-request-registry and unknown-initial-response routing caveats before adopting the full feature.
+
 ## Existing visual validation tools
 
 The target already exposes screenshot-based inspection through `manage_scene.screenshot` (inline image, Game View/Scene View, camera and positioned capture, surround/orbit contact sheets) and `manage_scene.scene_view_frame`. Use these before designing new screenshot MCP endpoints. For actual in-game presentation, request an inline Game View capture and inspect `captureSource` / `fallbackReason`; a camera fallback omits Screen Space Overlay/UI Toolkit layers, and a non-inline screenshot request may still be asynchronous. For Edit Mode layout/composition, Scene View or a constrained multi-angle camera sheet is often sufficient.

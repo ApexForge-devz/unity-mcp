@@ -88,6 +88,12 @@ Consequently, it can scan a large hierarchy the agent would otherwise avoid read
 
 The target already has screenshot pathways; the end-to-end generator contract should call those rather than introduce a parallel screenshot tool. `manage_scene.screenshot` returns inline image bytes when `include_image=true`, supports `capture_source=game_view|scene_view`, camera/position targeting and surround/orbit contact sheets; `manage_scene.scene_view_frame` frames an explicit target. Use one bounded image after generation, then narrow diagnostics only when it reveals a problem. Verify fallback metadata before treating a camera render as a composited Game View. Do not trust the default async file-only request as ready bytes without a readiness check. Source findings and screenshot resource-bound gaps are documented in [SCENE_VISUAL_VALIDATION_AUDIT.md](SCENE_VISUAL_VALIDATION_AUDIT.md).
 
+## Runtime validation must wait for Play Mode readiness
+
+The current `beta` `manage_editor(play)` path returns an acknowledgement; that is not a first-frame readiness guarantee. For runtime visual checks, PR [#1463](UPSTREAM_PR_1463_PLAY_STARTUP_REVIEW.md) offers a useful in-scope proposal: wait until `first_frame`, receive a stable startup job ID, and poll that job instead of re-sending the Play request. The PR is still open/unmerged against the reviewed baseline, so this is not described as already available.
+
+If adapted, use wait-only mode by default, then perform the existing screenshot/targeted validation steps. Keep `on_ready_code` out of scene authoring; at most use it for narrowly scoped read-only assertions. Treat an interrupted/unknown result as indeterminate, not proof that no side effect occurred. Add the lost-first-response/two-Editor routing tests and cap request replay-protection state before adoption.
+
 ## Recommended end-to-end operation contract
 
 The default loop should be:

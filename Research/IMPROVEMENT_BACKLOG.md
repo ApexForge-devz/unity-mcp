@@ -222,6 +222,8 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Detailed workflow and tool mapping:** [DETERMINISTIC_SCENE_AUTHORING.md](DETERMINISTIC_SCENE_AUTHORING.md).
 
+**Runtime readiness refinement:** current `beta` `manage_editor(play)` acknowledges the request without proving first-frame readiness. [PR #1463](UPSTREAM_PR_1463_PLAY_STARTUP_REVIEW.md) proposes `wait_until=first_frame`, a job ID and status polling, but it is still open/unmerged against the reviewed target. If adapted, use wait-only mode by default after deterministic regeneration; keep `on_ready_code` out of scene creation/repair and use it only for bounded read-only assertions if needed. Do not replay an uncertain startup request. Adoption gates include bounded request tombstones, retention policy and stable instance routing after a lost first response.
+
 **Existing visual validation:** the target already exposes inline screenshots, Scene View capture/framing, positioned camera capture and surround/orbit contact sheets through `manage_scene`. Do not propose a new screenshot tool as the first fix. The source audit found no upper bound on `super_size` in the inspected utility and no matching cap for `orbit_elevations`, even though those values affect texture/contact-sheet allocations. Keep the default check to one image and cap high-resolution/multi-view workload. See [SCENE_VISUAL_VALIDATION_AUDIT.md](SCENE_VISUAL_VALIDATION_AUDIT.md).
 
 
