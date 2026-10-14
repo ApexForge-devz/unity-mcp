@@ -1,0 +1,83 @@
+# Fork Candidate Register — Search Snapshot
+
+**Snapshot date:** 2026-10-14  
+**Status:** Candidate register only; not a complete inventory of all direct forks.
+
+## Scale and retrieval limitations
+
+GitHub repository metadata for [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) returned 1,553 forks, 14,923 stars, default branch beta, updated_at 2026-10-14T04:58:04Z, and MIT license metadata.
+
+The connected GitHub integration can read repository metadata, files, trees and commit comparisons, but rejects the public REST endpoint ending in /repos/CoplayDev/unity-mcp/forks. Fetching the GitHub forks page is disabled, and the working runtime has no external DNS/network. GitHub search is therefore being used to discover candidates, not to claim a complete parent-child listing.
+
+Searches on 2026-10-14:
+- CoplayDev unity-mcp fork:true: 23 results on page 1, none on page 2.
+- CoplayDev fork:true: 25 results on page 1.
+- unity-mcp fork:true: pages 1–4 sampled; each page had 100 results. Many are independent tools, project-specific demos, learning repositories or forks of other Unity MCP projects. They are not automatically direct forks of CoplayDev.
+- unity editor mcp and unity-mcp-server: used for independent implementation discovery.
+
+A 100-result search page cannot stand in for 1,553 direct forks. Search is relevance-ranked and capped. Continue with broad search, commit ancestry, branch comparisons and source evidence. Use a complete paginated forks collection when an authorized endpoint becomes available.
+
+## A. Upstream-derived candidates to check
+
+The following were returned by CoplayDev-focused search or have README/source evidence of being derived from an upstream Unity MCP. Parent relation may still need verification.
+
+| Candidate | Evidence today | Classification today | Review priority |
+|---|---|---|---|
+| [VRCLearn/unity-mcp](https://github.com/VRCLearn/unity-mcp) | Compare: 11 commits ahead, 115 behind, 31 changed files; VPM workflows and localization source | Confirmed useful divergent downstream fork | High |
+| [TomLeeLive/CoplayDev-unity-mcp](https://github.com/TomLeeLive/CoplayDev-unity-mcp) | Compared beta is 749 commits behind; no ahead commits/files reported | Stale snapshot on compared branch | Low |
+| [IgorOffline/CoplayDev-unity-mcp](https://github.com/IgorOffline/CoplayDev-unity-mcp) | Compared beta is 415 commits behind; no ahead commits/files reported | Stale snapshot on compared branch | Low |
+| [aj1126/-forked-CoplayDev-unity-mcp](https://github.com/aj1126/-forked-CoplayDev-unity-mcp) | Compared beta is 199 commits behind; no ahead commits/files reported | Stale snapshot on compared branch | Low |
+| [JossueMac/unity-mcp](https://github.com/JossueMac/unity-mcp) | Public, default branch pinned-v10.0.0; README identifies project; compare returned 404 | Release pin candidate; unique code delta unproven | Medium |
+| [iflow-mcp/coplaydev-unity-mcp](https://github.com/iflow-mcp/coplaydev-unity-mcp) | Public; README resembles upstream distribution | Mirror/packaging candidate; tree delta unknown | Medium-low |
+| [BaBy-Metal/unity-mcp](https://github.com/BaBy-Metal/unity-mcp) | Public; README blob SHA equals dawnli sample | Copy/mirror candidate; repository-level identity unproven | Low-medium |
+| [dawnli/unity-mcp](https://github.com/dawnli/unity-mcp) | Public; sampled README matches BaBy-Metal | Copy/mirror candidate; repository-level identity unproven | Low-medium |
+| [OverTM/CoplayDev.unity-mcp](https://github.com/OverTM/CoplayDev.unity-mcp) | CoplayDev-focused search result | Candidate only | Medium-low |
+| [heshuimu/CoplayDev.unity-mcp](https://github.com/heshuimu/CoplayDev.unity-mcp) | CoplayDev-focused search result | Candidate only | Medium-low |
+| [neurmostudio0409/CoplayDev-unity-mcp](https://github.com/neurmostudio0409/CoplayDev-unity-mcp) | CoplayDev-focused search result | Candidate only | Medium-low |
+| [buianhduc-ai/unity-mcp-CoplayDev](https://github.com/buianhduc-ai/unity-mcp-CoplayDev) | CoplayDev-focused search result | Candidate only | Medium-low |
+| [Bon-Games/Unity-MCP-CoplayDev](https://github.com/Bon-Games/Unity-MCP-CoplayDev) | CoplayDev-focused search result | Candidate only | Medium-low |
+| [adrnsyhsdq-debug/unity-mcp](https://github.com/adrnsyhsdq-debug/unity-mcp) | CoplayDev-focused search result | Candidate only | Medium-low |
+| [KasuganoSorakog/UnityMCP](https://github.com/KasuganoSorakog/UnityMCP) | CoplayDev-focused and broad search result | Candidate only | Medium-low |
+| [ShibaPapaMikami/unity-mcp-template-coplay](https://github.com/ShibaPapaMikami/unity-mcp-template-coplay) | CoplayDev-focused search result | Template/customization candidate | Medium |
+| [haroon911/unity-mcp-vpm](https://github.com/haroon911/unity-mcp-vpm) | CoplayDev-focused search result | VPM packaging candidate | Medium |
+| [ibelongedtoyou/unity-mcp-2019](https://github.com/ibelongedtoyou/unity-mcp-2019) | CoplayDev-focused search result | Old fork-history candidate | Low pending delta |
+| [devoffeed/UN-mcp-server](https://github.com/devoffeed/UN-mcp-server) | CoplayDev-focused search result | Possible renamed distribution | Medium-low |
+| [Amarok121/unity-platform-integration-sample](https://github.com/Amarok121/unity-platform-integration-sample) | CoplayDev-focused search result | Possible sample/template | Low pending ancestry |
+| [Ridil86/claude-unity-bootstrap](https://github.com/Ridil86/claude-unity-bootstrap) | CoplayDev-focused search result | Possible bootstrap/wrapper | Low pending ancestry |
+| [pashara/Unity-MCP-CoplayDev-FrameDebugger](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger) | Commit describes port from IvanMurzak Frame Debugger extension to CoplayDev MCP 9.3.2 | Specialized derivative, not a simple mirror | High |
+| [sabriboughanmi/Unity-MCP-FrameDebugger](https://github.com/sabriboughanmi/Unity-MCP-FrameDebugger) | README says it is built on IvanMurzak/Unity-MCP | Specialist implementation/ancestor | High for rendering workflows |
+
+### Useful findings so far
+
+1. **VRCLearn:** editor UI localization with English fallback and separation from MCP protocol names/schemas; VPM packaging, validation, release and upstream-sync workflows. Adapt release hygiene only when relevant; do not copy stale core code or hourly sync cadence blindly.
+2. **Pashara/SabriBoughanmi Frame Debugger:** deeper capture and render-event inspection than the target’s current three Frame Debugger actions; event-index verification and bounded event-tree rereading aim to prevent stale/misattributed render data.
+3. **JossueMac:** release-pinned branch is worth assessing as reproducibility practice, but no code-level unique improvement is proven.
+4. **Stale copies:** TomLeeLive, IgorOffline and aj1126 have no ahead commits on the refs compared. This is evidence against porting from those refs, not a declaration that every branch is useless.
+
+## B. Broad-search implementation candidates (not automatically direct forks)
+
+The broad unity-mcp fork search contains hundreds of adjacent projects. They should be reviewed for their own implementations but not counted as direct forks without ancestry evidence.
+
+- [ozankasikci/unity-editor-mcp](https://github.com/ozankasikci/unity-editor-mcp) — independent server with asset dependency analysis and multi-instance diagnostics.
+- [pushkar-env/unity-mcp](https://github.com/pushkar-env/unity-mcp) — independent .NET bridge and READ/WRITE/DESTRUCTIVE permissions.
+- [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP) — independent Unity skills/MCP system and source base for an original Frame Debugger extension.
+- [AnkleBreaker-Studio/unity-mcp-server](https://github.com/AnkleBreaker-Studio/unity-mcp-server) — progressive discovery, compact formatting and final-route guards.
+- [kitwright/unity-mcp](https://github.com/kitwright/unity-mcp) — inline output caps, export profiles and Editor pump diagnostics.
+- [CoderGamester/mcp-unity](https://github.com/CoderGamester/mcp-unity) — independent/earlier implementation candidate.
+- [mitchchristow/unity-mcp](https://github.com/mitchchristow/unity-mcp) — independent editor integration candidate.
+- [MothCyan/PerfAgent-Unity](https://github.com/MothCyan/PerfAgent-Unity) — performance workflow candidate.
+- [Savidyaf/Unity-VFX-Graph-MCP-Tool](https://github.com/Savidyaf/Unity-VFX-Graph-MCP-Tool) — specialist VFX Graph candidate.
+- [Pico-Developer/Unity-MCP-Extensions](https://github.com/Pico-Developer/Unity-MCP-Extensions) and [meta-quest/Unity-MCP-Extensions](https://github.com/meta-quest/Unity-MCP-Extensions) — specialist extension candidates.
+- [sabriboughanmi/Unity-MCP-FrameDebugger](https://github.com/sabriboughanmi/Unity-MCP-FrameDebugger) — rendering-analysis extension.
+
+The broad search also returns demos, toy apps, tutorials, workflow repositories and forks of other upstream projects. Names alone do not establish ancestry or usefulness.
+
+## C. Path toward a complete inventory
+
+1. Obtain the upstream fork collection through a tool/API that can read it and page until all 1,553 records are exhausted.
+2. Store a normalized table of repository ID, owner/name, parent/source, default branch, pushed date, archive status, stars and observed SHA.
+3. Group identical upstream snapshots while preserving inventory rows.
+4. Compare every plausible fork with ahead-of-upstream commits to the nearest common ancestor; inspect substantive files and tests.
+5. Review every candidate with meaningful ahead commits rather than sampling only popular repos.
+6. Record a decision and source evidence in FORK_COMPARISONS.md and RESEARCH_LOG.md.
+7. Keep this research labelled incomplete until the coverage criteria are met.
