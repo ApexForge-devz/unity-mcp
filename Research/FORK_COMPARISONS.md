@@ -87,3 +87,36 @@ The listed 34 tests and behavior are author-commit claims; they were not run ind
 2. Check candidates such as `pashara` at source-file level and inspect release/CI claims.
 3. Inspect other forks with actual ahead commits or unique directories; ignore redundant README-only variations until a tree/diff shows substance.
 4. Keep the upstream compare base current before any cherry-pick/port decision.
+
+
+## 7. Useful but very stale derivative: czmomocha/unity-coplayDev-mcp
+
+**GitHub compare:** current CoplayDev beta versus czmomocha main reports 8 commits ahead, 1,541 behind and 32 changed files. Latest observed fork commits were read through GitHub commit search on 2026-10-14.
+
+Source reviewed:
+- [TypeScript/TSX script management tool](https://github.com/czmomocha/unity-coplayDev-mcp/blob/main/MCPForUnity/UnityMcpServer~/src/tools/manage_ts_script.py), blob 7ff281ced10598998ea0c4e6c57a3e89c17a214b.
+- [Custom tool authoring guide](https://github.com/czmomocha/unity-coplayDev-mcp/blob/main/MCP_Custom_Tool_Guide.md), blob 72680fd9310d00dea7df535c426c0f15758f8703.
+- [Unity 2020 compatibility notes](https://github.com/czmomocha/unity-coplayDev-mcp/blob/main/Unity2020_%E5%85%BC%E5%AE%B9%E6%80%A7%E4%BF%AE%E5%A4%8D%E6%80%BB%E7%BB%93.md), blob f7fb9377bc9d3cf4546e156e837369466995e4f9.
+- [Modified ManageGameObject.cs](https://github.com/czmomocha/unity-coplayDev-mcp/blob/main/MCPForUnity/Editor/Tools/ManageGameObject.cs), blob c3623b9b5e9b77dd84fe40f040ade3f6c3add755.
+
+### Distinct contributions
+
+- A TypeScript/TSX management tool for Puerts-based Unity projects. It defines allowed roots (Assets and DevCommon/TSProject), chooses likely tsconfig candidates, rejects path-traversal segments and validates paths against allowed roots. This fills a specialist scripting workflow for projects that keep gameplay TypeScript outside Unity Assets.
+- Commit messages describe added TypeScript create/read/update/delete operations, fixes for prefab stage automation and consistent GameObject/prefab addressing, and a custom-tool build/validation guide.
+- The Unity 2020 note records older API/language compatibility work such as PrefabStage namespace changes, avoiding ZipFile APIs not available in the target runtime, replacing newer C# range syntax, and older object-find APIs.
+
+### What to borrow
+
+**INVESTIGATE / ADAPT only for matching requirements:**
+- If first-party support for Puerts/TypeScript workflows becomes a goal, use the typed TS operation surface and allowed-root/path validation as an example for an optional extension or custom-tool package.
+- The custom-tool guide is a useful source of process documentation, although the target already has custom tool extensibility.
+- Preserve a tested Unity version compatibility matrix. Legacy support should be a deliberate product requirement rather than adopting old workarounds without checking the current minimum version.
+
+### Why not merge it
+
+The branch is approximately 1,541 commits behind current upstream and is based on an old v7-era baseline. Its large ManageGameObject and EditorWindow edits predate extensive upstream evolution. A feature that is still missing should be reimplemented/forward-ported onto the current baseline with tests; do not cherry-pick the old branch wholesale.
+
+Commit evidence:
+- [TypeScript support commit](https://github.com/czmomocha/unity-coplayDev-mcp/commit/70df486b7dd787d0a840ed10b5ca629600d3599d)
+- [TypeScript outside Assets commit](https://github.com/czmomocha/unity-coplayDev-mcp/commit/b49fe7131b8824b01970611752e7730b7d477ba6)
+- [Unity 2020 compatibility adaptation](https://github.com/czmomocha/unity-coplayDev-mcp/commit/2e2e3e024fb2dcdcaae36638aa238860aab288da)
