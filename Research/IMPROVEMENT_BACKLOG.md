@@ -291,19 +291,24 @@ Do not copy the package unchanged: the reflection contract targets Unity interna
 
 ### P2.4 Memory Profiler snapshot querying
 
-**Finding:** the target's MemorySnapshotOps can take a .snap file, list snapshots and compare file-level metadata; the source explicitly points object-level comparison back to the Editor window. The [Unity-MCP-MemoryProfiler extension](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler) source has incremental snapshot loading, bounded sessions, query/diff engines, object/reference/path-to-root views and several EditMode test suites.
+**Finding:** the target's `MemorySnapshotOps` can take `.snap` files, list snapshots and compare file-level metadata; it does not expose object-level query/reference/root paths or meaningful object-level delta analysis. The [Unity-MCP-MemoryProfiler specialist extension](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler) contains useful incremental snapshot loading, bounded path-to-root traversal, object/reference views and identity-aware comparisons, but it is built on IvanMurzak's MCP framework and Memory Profiler Editor internals.
 
-**Recommendation — INVESTIGATE / ADAPT as an optional specialist capability:**
-- Start with snapshot metadata, category summary and paginated query against loaded snapshots.
-- Use operation/session handles; allow cancellation and explicit close/disposal.
-- Cap concurrent sessions and returned rows, make sort/filter behavior deterministic, and keep the detailed schema outside the default tool surface if not commonly used.
-- Make Unity Memory Profiler package/version requirements explicit and return useful “unsupported package/API” outcomes.
-- Port domain logic into target conventions rather than importing the extension's IvanMurzak plugin framework.
+**Recommendation — INVESTIGATE / ADAPT SELECTIVELY, with correctness gates:** 
+- Port algorithms and DTO concepts into the target's existing `manage_profiler` action family; do not install it unchanged or add many separate top-level tools.
+- Start with explicit capture target/version metadata, async open/session/close, basic summary, paged search and object details. Add references and bounded paths-to-roots once lifecycle and output limits pass acceptance.
+- Enforce session/operation caps across *in-progress opens plus loaded snapshots* and release operation records/native readers on all terminal outcomes. State clearly that native capture cannot be cancelled once it starts if the public API cannot stop it.
+- **Blocker before adoption:** query limit is hard-capped at 500, yet export and session-diff code request 999,999 or 50,000, then some domains are labelled `Complete`. Detailed object default cap is 10,000, which can also be misreported complete after a 500-row query. Split interactive page size from complete internal enumeration or explicitly mark truncation at every layer.
+- Bound work as well as output: current query methods materialize and sort all matching rows on the Editor main thread before paging. Use bounded/chunked enumeration or aggregated internal queries for large domains.
+- Use identity confidence (GUID + local file ID > GUID/type > path/type > name/type) and retain ambiguity/unmatched rows; NodeIds are session-specific.
+- Make export/capture writes recoverable and atomic; current code deletes an existing target before moving a temp capture, and JSON export writes directly to the final path.
+- Treat `.snap` inputs as large/sensitive local artifacts; do not commit fixture snapshots. Add or provision a documented fixture so snapshot-dependent tests do not silently skip in CI.
+- Test supported Unity + Memory Profiler package versions; candidate core depends on Editor APIs and package `com.unity.memoryprofiler` 1.1.x. Use development Player captures for runtime memory questions, and include target metadata because Editor/attached Player capture semantics differ.
 
-**Acceptance tests:** open/cancel/close lifecycle; bounded session count; paged/sorted/filtered queries; snapshot metadata and summaries; diff rows for positive and negative changes; paths-to-roots/references; invalid or incompatible snapshots; missing/older package; disposal and domain-reload behavior.
+**Acceptance tests:** more than 500 rows are exported/diffed completely or explicitly marked partial; queries report bounded work; concurrent open operations obey a hard cap; invalid snapshots dispose handles and don't leak operation records; failed replacement preserves last-good output; path traversal reports truncation; cross-snapshot identity match confidence is preserved; missing capture flags are unavailable rather than zero; fixture-dependent tests either run against a documented generated fixture or report their skips visibly.
 
-**Sources:** [Target MemorySnapshotOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/Profiler/Operations/MemorySnapshotOps.cs); [specialist Tool_MemoryProfiler.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Editor/Scripts/Tool_MemoryProfiler.cs); [SnapshotQueryEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/SnapshotQueryEngine.cs); [source/test analysis](SPECIALIST_WORKFLOWS.md).
+**Detailed source review:** [FORK_MEMORY_PROFILER_REVIEW.md](FORK_MEMORY_PROFILER_REVIEW.md).
 
+**Sources:** target [MemorySnapshotOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/Profiler/Operations/MemorySnapshotOps.cs); candidate [SnapshotQueryEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/SnapshotQueryEngine.cs), [SnapshotDiffEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/SnapshotDiffEngine.cs), [MemoryProfilerExportEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/MemoryProfilerExportEngine.cs); Unity [TakeSnapshot documentation](https://docs.unity.com/en-us/engine/6000.5/script-reference/unity/profiling/memory/memoryprofiler/takesnapshot).
 ### P2.5 Release/version/source alignment
 
 **Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.
