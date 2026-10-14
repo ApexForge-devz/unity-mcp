@@ -26,6 +26,7 @@ Keep the existing Python MCP server and Unity C# Editor bridge. Improve their co
 | [Ecosystem Findings](ECOSYSTEM_FINDINGS.md) | High-signal upstream/fork patterns and their limitations |
 | [Validation Plan](VALIDATION_PLAN.md) | Tests, measurements and evidence needed before adoption |
 | [Scope and Method](SCOPE_AND_METHOD.md) | Boundaries, evidence labels and coverage limitations |
+| [Second-Pass Capability Audit](CAPABILITY_AUDIT_AND_NEW_IDEAS.md) | Current capability inventory, research disposition and new ideas |
 
 ## Evidence boundary
 
