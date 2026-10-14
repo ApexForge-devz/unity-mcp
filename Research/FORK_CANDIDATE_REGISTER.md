@@ -115,3 +115,37 @@ Later searches included:
 The MCPForUnity-focused query surfaced 7 candidates. The frame-debugger query returned two direct specialist project names; the memory-profiler query returned one specialist project name. Broad pages 5–10 added 600 more result rows across the same relevance-ranked broad search, several of which are unrelated to direct upstream forkage.
 
 Do not sum query totals as unique forks: searches overlap heavily and may return the same repo more than once. Continue to distinguish confirmed comparisons from README-only candidates.
+
+
+## F. Further fork-only and facade review pass (2026-10-14)
+
+Additional GitHub repository searches used:
+- `unity-mcp fork:only`, pages 1–3 (100 results per page);
+- `MCPForUnity fork:only`, pages 1–2 (no results for that exact query);
+- `CoplayDev fork:only`, page 1 (15 results);
+- `MCP for Unity fork:only`, page 1;
+- `unity-mcp in:readme CoplayDev fork:true`, page 1.
+
+These filters describe GitHub search results and do not guarantee that every row is a direct child of CoplayDev; parentage and source ancestry still need repository-level verification.
+
+| Repository | Branch / evidence | Classification | What was useful |
+|---|---|---|---|
+| [The1Studio/unity-mcp](https://github.com/The1Studio/unity-mcp) | beta; compare against CoplayDev beta: 163 ahead, 529 behind, 300 changed files | Broad, very stale upstream-derived fork | Checked integer write coercion, component SerializedProperty vector support, Play Mode input simulation, RunInBackground guard, optional DOTS/ECS suite and fork-sync workflow. Detailed review in [FORK_COMPARISONS.md](FORK_COMPARISONS.md). |
+| [Vangardo/unity-mcp-efficient](https://github.com/Vangardo/unity-mcp-efficient) | main; latest visible commit on 2026-08-25; 53-entry tree; README and source/test files inspected | Independent facade/companion, not a replacement Editor plugin | Six stable tools, operation-level catalog, result compaction, TTL/size-bounded retrieval handles, sequential request-id mutation suppression and bounded declarative workflow. See [ALTERNATIVES.md](ALTERNATIVES.md). Its published efficiency figures are against upstream v10.1.0 on 2026-08-24 and use character-count/4 token estimates plus a synthetic hierarchy. |
+| [Scriptwonder/unity-mcp](https://github.com/Scriptwonder/unity-mcp) | beta compares identical to CoplayDev beta | Exact mirror on compared ref | No unique runtime code contribution on that ref. |
+| [TigerHix/unity-mcp](https://github.com/TigerHix/unity-mcp) | beta is 674 commits behind; no ahead changes reported | Stale snapshot | No unique code contribution found on compared ref. |
+| [chanqueenieolivia-ui/unity-mcp](https://github.com/chanqueenieolivia-ui/unity-mcp) | beta is 529 commits behind; no ahead changes reported | Stale snapshot | No unique code contribution found on compared ref. |
+| [nathanandrewturner/unity-mcp](https://github.com/nathanandrewturner/unity-mcp) | master is 685 commits behind; no ahead changes reported | Stale snapshot | No unique code contribution found on compared ref. |
+| [RealAgentMoulder/unity-mcp-fork](https://github.com/RealAgentMoulder/unity-mcp-fork) | beta is 345 commits behind; no ahead changes reported | Stale snapshot | No unique code contribution found on compared ref. |
+| [paopaolaowang/unity-mcp-fork](https://github.com/paopaolaowang/unity-mcp-fork) | beta is 1,385 commits behind; no ahead changes reported | Very stale snapshot | No unique code contribution found on compared ref. |
+| [ZhangJiaLong90524/unity-mcp-fork](https://github.com/ZhangJiaLong90524/unity-mcp-fork) | beta compares identical to CoplayDev beta | Exact mirror on compared ref | No unique runtime code contribution on that ref. |
+| [RasputinKaiser/Fork-unity-mcp](https://github.com/RasputinKaiser/Fork-unity-mcp) | master is 1,969 commits behind; no ahead changes reported | Very stale snapshot | No unique code contribution found on compared ref. |
+
+Other cross-owner compare calls returned 404 for a few candidates (including a-nom-ali, MrDonut12, TND23 and Vangardo). These are recorded as unavailable comparisons, not evidence of absent repositories or useless code. Vangardo was subsequently reviewed directly as a separate facade.
+
+### New reusable patterns, with caveats
+
+- The1Studio's checked integer/long coercion is a real data-correctness difference in the inspected serialized write path. See its commit [970ac290](https://github.com/The1Studio/unity-mcp/commit/970ac29098b4b836cd6de596043f5f92aecf508f).
+- The1Studio's input simulator is a promising optional Play Mode test capability, but game-facing input must be proven to reach the player loop and the focused Game View; a queued device event alone is not end-to-end success.
+- The1Studio's RunInBackground guard explicitly documents an unresolved crash/quit restore gap, so it is a candidate to investigate, not a no-risk patch.
+- Vangardo's facade demonstrates a possible stable, typed operation catalog and recoverable compact output, but the full feature runs as an additional MCP server and its schema/action allowlists may drift. Benchmark against the current upstream package before choosing a facade versus internal integration.
