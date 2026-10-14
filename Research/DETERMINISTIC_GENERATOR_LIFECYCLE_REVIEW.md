@@ -94,6 +94,22 @@ The default loop should be:
 
 A dedicated `run_scene_generator` action may be warranted if the existing menu path cannot carry a run ID or return/retrieve a bounded completion report. Prefer a narrow operation contract backed by the existing transport, editor-state and scene tools over a broad new orchestration framework. Before adding that action, test whether a project-owned generator can publish and retrieve the same receipt through existing mechanisms with equivalent reliability.
 
+## Existing async test jobs: pattern to adapt, not an API to reuse
+
+The target already has an established asynchronous-job design in `TestJobManager`, `RunTests` and `get_test_job`:
+
+- A start action returns a generated job ID and `running` status immediately; callers poll that same ID for progress and terminal state.
+- The Editor-side manager retains a bounded set of recent jobs (10), timestamps and progress/failure summaries, and persists lightweight state in `SessionState` so a job can be restored across an assembly/domain reload during the same Editor session.
+- Polling may return `running`, `succeeded` or `failed`, with timestamps, progress and bounded failure details. The Python wrapper can long-poll for a bounded time instead of forcing tight client polling.
+- The implementation is test-specific. It prevents overlapping test runs and its status endpoint speaks the test-job schema; it is not a general-purpose scene-operation service.
+- Crucially, persisted job metadata deliberately omits the full `TestRunResult` to keep `SessionState` bounded. After reload, a terminal status can be restored without the original detailed result payload. `SessionState` also does not promise persistence across closing/restarting Unity.
+
+Use this as an internal design precedent for scene generation, not by routing generation through `get_test_job` or expanding `TestJobManager` into an unrelated generic framework. If the existing menu action cannot return/retrieve its own completion result, a narrow generator-run record should include a generated run ID, target Unity project/instance, source hash, output scene path, start/finish timestamps, state, concise assertion summary and save/promote result. Persist only bounded summary metadata through domain reload; store full reports as project-owned artifacts only when needed. State whether run records survive only domain reload/reconnect or also full Editor restart. A status read must never start the generator.
+
+In a multi-Editor setup, scope server-side receipts to the selected Unity instance and authenticated principal where applicable; a locally generated UUID alone is not the routing/authorization policy.
+
+**Existing implementation references:** [TestJobManager.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/TestJobManager.cs), [RunTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/RunTests.cs), [run_tests.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/run_tests.py), [test_run_tests_async.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/tests/integration/test_run_tests_async.py).
+
 ## Acceptance tests
 
 | Test | Required assertion |
@@ -111,9 +127,10 @@ A dedicated `run_scene_generator` action may be warranted if the existing menu p
 | Asset/reference problem | Missing or ambiguous references are explicit errors, not silent substitutions. |
 | Normal successful run | Default response is bounded; no full scene hierarchy is emitted. |
 | Two Unity Editors connected | The run receipt and output scene belong to the intended instance/project. |
+| Run receipt across reload | A running/terminal receipt survives domain reload within the Editor session, stays bounded, and does not falsely promise full detail or Editor-restart persistence unless explicitly implemented. |
 
 ## Priority decision
 
-Keep this under **P1.11 — make script-first deterministic scene generation the primary authoring contract**. The source audit sharpens P1.11 rather than justifying another set of CRUD tools. The most important implementation seam is **compile-success evidence plus a durable generator-run receipt**. Treat it as an integration gap to test, not a claim that all existing primitives are unusable.
+Keep this under **P1.11 — make script-first deterministic scene generation the primary authoring contract**. The source audit sharpens P1.11 rather than justifying another set of CRUD tools. The most important implementation seam is **compile-success evidence plus a reload-surviving generator-run receipt**. Treat it as an integration gap to test, not a claim that all existing primitives are unusable.
 
 No runtime source or tests were changed during this audit.

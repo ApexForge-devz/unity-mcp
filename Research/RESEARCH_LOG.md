@@ -612,3 +612,16 @@ A second source pass checked the underlying C# implementations rather than just 
 - `ManageScene.ValidateScene` operates on `SceneManager.GetActiveScene()`, traverses all descendants, reports missing scripts and missing prefab assets, and can remove missing scripts when auto-repair is enabled. It is neither an output-path-scoped generator check nor a narrow validator.
 
 The lifecycle review now records these facts and narrows its recommendation: add a correlated compiler-result contract and generator run receipt only if existing receipt/report mechanisms cannot meet the acceptance tests. Avoid making active-scene full-hierarchy validation or auto-repair part of the default generator loop. Source links: [RefreshUnity.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/RefreshUnity.cs), [EditorStateCache.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/EditorStateCache.cs), [ReadConsole.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ReadConsole.cs), [ManageScene.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageScene.cs).
+
+
+### Follow-up: existing asynchronous job machinery as a reference pattern
+
+Reviewed the Unity-side `TestJobManager` and Python `run_tests.py` implementation to determine whether the scene-generation gap requires a new job framework.
+
+**Useful precedent:** `RunTests` returns a unique `job_id` and `running` immediately; `get_test_job` reads status/progress and supports a bounded server-side wait. `TestJobManager` keeps a bounded set of jobs, records status/timestamps/progress, and persists lightweight metadata through `SessionState` so the Editor can restore job state after domain reload.
+
+**Important limitations:** this system is specifically tied to Unity Test Runner state and its own tool schema. Persisted SessionState intentionally does not include the full test result object, so a restored terminal job can lack detailed results; SessionState also should not be described as surviving the full Editor process restart. It is a design pattern, not an existing reusable scene-generator endpoint.
+
+**Recommendation refinement:** if the generator run needs a separate receipt, keep it narrow: run ID, Unity instance/project identity, source hash, target output scene path, status/timestamps, compact assertion summary and save/promotion outcome. Persist only bounded metadata across domain reload; write larger report artifacts only when genuinely needed. Explicitly define persistence lifetime and status-read behavior. Do not reuse `get_test_job` for generators or introduce a generic job engine without evidence it benefits other MCP↔Unity operations.
+
+Sources: [TestJobManager.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/TestJobManager.cs), [RunTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/RunTests.cs), [run_tests.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/run_tests.py), [test_run_tests_async.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/tests/integration/test_run_tests_async.py). Source review only; no tests were run.
