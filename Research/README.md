@@ -36,7 +36,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [ ] Diff the high-value candidates file-by-file and map changes to all corresponding target handlers/tests.
 - [ ] Complete source review of selected independent implementation subsystems, including Unity-side implementations and tests.
 - [ ] Finish mapping every recommendation against the current source and CI tests.
-- [ ] Complete the MCP modern/legacy compatibility specification matrix from authoritative current sources.
+- [x] Complete the MCP modern/legacy compatibility specification matrix from authoritative current sources; retain live client/runtime tests as pending.
 - [ ] Run repository tests/builds/benchmarks for any implementation work. No Unity Editor runtime test or performance benchmark has been executed as part of the research recorded here.
 
 ## Documents

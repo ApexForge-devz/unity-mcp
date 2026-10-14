@@ -452,3 +452,17 @@ New source-checked findings cover:
 - #1464: explicit optional package versions and separate installed-package/native-API capability reporting.
 
 The referenced proposals were observed open in GitHub metadata on 2026-10-14. Each review separates proposal behavior from target-beta behavior, calls out overlap with existing work, and lists missing validation. This is patch-level research only: no Python tests, Unity tests, multi-Editor reproduction, performance benchmarks or runtime code edits were performed. External generator/inference integration proposals were not included.
+
+
+## Protocol compatibility matrix — current spec and target source reconciled (2026-10-14)
+
+Updated [PROTOCOL_COMPATIBILITY.md](PROTOCOL_COMPATIBILITY.md) using the published MCP 2026-07-28 tools specification and the FastMCP 4 GA announcement, then cross-checked the exact target beta implementation.
+
+Newly confirmed target details:
+- `Server/pyproject.toml` pins `fastmcp>=3.0.2,<4` (blob `83800f55c65984102b61a035613a2ca40459eb91`).
+- `manage_tools.py` (blob `b8875e4d5fd3673c26063c26681b31fb43703fd3`) uses `ctx.enable_components`, `ctx.disable_components`, `ctx.reset_visibility` and private `ctx._get_visibility_rules`, while explicitly relying on FastMCP 3.x per-session visibility.
+- The official current spec permits the tool set to change over time or vary by request authorization, but says it must not vary per connection or as a side effect of other requests on that connection. It recommends deterministic order and defines `ttlMs`/`cacheScope` hints for list caching.
+
+Decision refined: modern mode needs a stable catalog or fixed configured tool-profile endpoint; only real, validated per-request authorization can justify a request-specific list. Legacy per-session group behavior can be retained only if negotiated mode and FastMCP compatibility tests prove it remains supported. A version bump alone is not a solution. The doc adds a client/protocol compatibility matrix plus acceptance tests for catalog stability, headers, reconnects, explicit Unity identity, cache privacy, and schema parity.
+
+Authoritative references: [MCP tools spec](https://modelcontextprotocol.io/specification/2026-07-28/server/tools), [MCP release announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/), [FastMCP 4 GA notes](https://blog.gofastmcp.com/3mufbh2vcv22o). No tests or runtime migration were run.

@@ -53,7 +53,9 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Recommendation — INVESTIGATE, then ADAPT:**
 - Create a compatibility spike that serves modern stateless protocol clients and supported legacy clients.
-- Decide how user/editor-selected tool groups map onto a stable tools/list contract. A possible approach is to keep schemas stable and gate invocation through capability state rather than changing list contents in modern mode.
+- The current target's `manage_tools` directly calls `ctx.enable_components`, `ctx.disable_components`, `ctx.reset_visibility` and reads `ctx._get_visibility_rules`; the module explicitly describes FastMCP 3.x per-session tool visibility. In modern mode, do not let a prior `manage_tools` call change `tools/list` merely due to connection/session state.
+- Prototype three compliant surfaces: a stable modern catalog with invocation gating; separately configured server endpoints with fixed curated catalogs; and request-authorization-based filtering only if every list request has real, authoritative caller credentials. Do not treat a tool argument or opaque session variable as authorization.
+- Keep legacy per-session visibility only for a negotiated legacy protocol mode if compatibility tests prove it still works. FastMCP 4 advertises modern/legacy protocol support, but that does not prove the target's private visibility API remains compatible.
 - Test protocol negotiation and behavior before relaxing the FastMCP upper bound.
 - Preserve legacy clients deliberately; do not assume the newest protocol can replace them immediately.
 - Add deterministic tool ordering and schema-parity tests.

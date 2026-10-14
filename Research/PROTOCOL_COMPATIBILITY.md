@@ -1,127 +1,126 @@
 # MCP 2026-07-28 and FastMCP 4 Compatibility Review
 
 **Reviewed:** 2026-10-14  
-**Target:** ApexForge-devz/unity-mcp beta  
-**Purpose:** Turn the protocol migration concern into testable design requirements. This document is based on the current published MCP tools specification, the MCP release announcement, FastMCP v4 release notes and protocol notes, plus the target's current dependency/tool-group source. No protocol integration test has yet been executed.
+**Target:** ApexForge-devz/unity-mcp `beta`  
+**Target HEAD at review:** `142ea0af4890337f0ff6658df61db23982313717`  
+**Decision:** Do a controlled protocol-mode spike; do not upgrade the pinned dependency on version number alone.  
+**Validation state:** Protocol text and target source inspected; no integration tests or Unity runtime tests run.
 
-## 1. Authoritative protocol requirements relevant to this repo
+## Executive finding
 
-### 1.1 Tool list stability
+The key incompatibility is now concrete, not hypothetical. The published [MCP 2026-07-28 tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) permits the available tool set to change over time and to vary by authorization presented on each request. It also says the set **must not vary per connection or as a side effect of other requests on that connection** and recommends deterministic order.
 
-The [MCP 2026-07-28 Tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) states:
-- tools/list responds with the set of tools currently available to the requesting client.
-- The set may be empty and may change over time.
-- **It must not vary per connection or as a side effect of other requests on that connection.**
-- It may vary with the authorization presented on the individual request, because credentials are request-level inputs.
-- Servers should return tools in deterministic order when the underlying set has not changed.
-- listChanged notifications are recommended when availability changes for listening clients.
+The target's `manage_tools` implementation explicitly enables/disables registered components through FastMCP 3 per-session visibility rules, and `tools/list` is expected to change after those calls. The target pins `fastmcp>=3.0.2,<4`. FastMCP 4 was announced GA on 2026-08-31 and states it supports the 2026-07-28 protocol while retaining compatibility with older clients. That makes a controlled migration possible in principle, but it does not establish that the target's existing session-visibility API, private context API, tests and transports work unchanged.
 
-This has a direct design consequence for the existing manage_tools behavior: session-specific list mutation is a legacy-era design assumption that needs an explicit modern-mode strategy. A new client should not receive different tools/list contents solely because it opened a different connection or invoked a tool-group toggle. Do not infer that all dynamic tools are forbidden: time-varying availability and request-authorization-based filtering are allowed, subject to notification/cache rules. The exact contract and client caching behavior need tests.
+**Recommendation:** separate protocol compatibility from tool-catalog/context design. Keep the existing pin until a modern/legacy matrix passes. Modern mode must not depend on mutable transport-session visibility.
 
-Source: [Tools capability and list behavior](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) (the published page's Capabilities section, especially the listChanged text).
+## 1. Current target behavior confirmed from source
 
-### 1.2 The modern protocol is sessionless
+### Dependency boundary
 
-The [MCP 2026-07-28 announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/) says the new revision retires the initialize/initialized handshake and Mcp-Session-Id. Requests carry protocol version and client metadata in _meta; clients may call server/discover, but it is optional. Each request can land on any server replica. Application state may still exist, but should be surfaced through explicit handles passed in tool arguments rather than hidden transport-session dependence.
+Target [`Server/pyproject.toml`](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/pyproject.toml), blob `83800f55c65984102b61a035613a2ca40459eb91`, pins `fastmcp>=3.0.2,<4` and `mcp>=1.16.0`.
 
-For Unity-MCP, this suggests:
-- do not use the transport session as the only source of project, tool-group or operation state in modern mode;
-- use explicit Unity-instance, job, capture, snapshot or continuation handles where continuity is necessary;
-- preserve the identity/project routing and auth boundaries while supporting stateless requests;
-- distinguish protocol statelessness from actual stateless application behavior: the Editor, jobs and captured snapshots are naturally stateful resources and should use explicit resource IDs and validated lifetimes.
+### Session-dependent group visibility
 
-### 1.3 FastMCP v4 is a migration candidate, not a blind bump
+Target [`manage_tools.py`](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/manage_tools.py), blob `b8875e4d5fd3673c26063c26681b31fb43703fd3`, declares that tool groups can be activated/deactivated for the current session and says this uses FastMCP 3.x native per-session visibility. Its implementation calls:
 
-[FastMCP v4.0.0 release notes](https://github.com/PrefectHQ/fastmcp/releases/tag/v4.0.0) say v4 was released on August 31, 2026 and supports both the 2026-07-28 stateless protocol and legacy handshake-era clients, auto-detecting per connection. They also list breaking/API changes that still require an application audit.
+- `ctx.enable_components(...)` on activation.
+- `ctx.disable_components(...)` on deactivation.
+- `ctx.reset_visibility()` on reset.
+- `ctx._get_visibility_rules()` to reconstruct visible group state.
 
-[FastMCP's 2026 protocol notes](https://github.com/PrefectHQ/fastmcp/blob/main/dev-docs/v4-notes/protocol-2026.md) describe modern server/discover support, legacy initialize support, cache hints, resource path security and mode negotiation.
+The final call is a private API, making API compatibility an explicit migration check. This behavior is coupled to both the protocol/session model and FastMCP internals, not only to the `FastMCP` constructor or import path.
 
-Target [Server/pyproject.toml](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/pyproject.toml) constrains FastMCP to >=3.0.2,<4, and target [manage_tools.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/manage_tools.py) is written around FastMCP 3 per-session visibility. Therefore v4 is a sensible candidate for a controlled spike, not yet a proven drop-in replacement for every target workflow.
+### Consequence
 
-## 2. Options to evaluate (do not decide by guesswork)
+A blind change to `fastmcp<4` → `fastmcp>=4` could expose incompatibilities in at least three layers: negotiated protocol behavior, session/tool visibility, and private context APIs. Tests that only import the package or register a basic tool are insufficient.
 
-### Option A — Keep one stable tool catalog in modern mode
+## 2. Protocol-mode compatibility matrix
 
-Publish a deterministic catalog independent of calls on a transport connection. Tool-group selection could influence invocation eligibility, returned explanations or caller-requested detail, rather than changing tools/list based on earlier calls. If filtering is based on request authentication, follow authorization and cache-scope rules; do not pretend the model's ordinary tool call arguments are credentials.
+| Concern | Legacy mode (2025-11-25 family) | Modern mode (2026-07-28) | Required target behavior |
+|---|---|---|---|
+| Protocol lifecycle | `initialize` / `initialized` handshake and protocol session header are part of the older flow. | The release retires the handshake and `Mcp-Session-Id`; each request is self-describing. | Negotiate by client mode; do not require a legacy session before handling modern requests. |
+| Request identity | Session state may be associated with the negotiated legacy connection. | Protocol-level session state cannot be the only carrier of application state; use request metadata, authenticated identity or explicit application handles. | Project and Unity-instance identity must remain unambiguous across reconnects and independent HTTP requests. |
+| `tools/list` catalog | Existing session visibility behavior may be preserved when the client negotiated a legacy mode and the SDK still supports it. | List contents must not vary per connection or because an earlier request changed visibility. Differences based on per-request authorization are allowed. | Keep the legacy path tested; use a stable catalog or fixed configured server surface for modern mode. |
+| Catalog order and caching | Preserve existing client-compatible ordering. | List results support `ttlMs` and `cacheScope`; order should be deterministic. | Stable ordering; cache scope must never share project/user-private lists. Use zero TTL/private scope until stability and identity boundaries are demonstrated. |
+| HTTP headers | Existing legacy transport contract and clients must continue to work. | Streamable HTTP modern requests use protocol metadata plus `Mcp-Method` and `Mcp-Name` routing headers. | Verify both directions: accepted modern requests include required headers; header/body disagreement and missing required headers produce defined errors. Do not break stdio. |
+| Discovery | Legacy clients typically discover through the existing initialization/tool-list flow. | `server/discover` is available but optional. | No normal tool call should depend on a prior optional discovery call. |
+| Tool-list change notifications | Preserve behavior expected by supported clients. | Current spec uses modern subscription/list-change semantics; list invalidation and cache lifetime need explicit tests. | Test per mode, not with one assumed notification mechanism. |
+| Long-lived application work | Existing job manager/status handles remain useful. | The protocol is stateless, but Unity Editor state and background jobs are still stateful resources. | Continue using explicit job/snapshot/capture/result handles with ownership, expiry and stale-ID checks. Do not confuse protocol statelessness with an actually stateless Unity Editor. |
+| Security | Existing trusted-local assumptions and server policy remain. | Per-request authorization may justify a request-specific catalog; a previous tool call's arguments do not constitute credentials. | Never use group selection as authorization, and never let hidden/visible status bypass final-route permission checks. |
 
-**Pros:** closest to the new tools-list contract; stable schemas and better prompt-cache behavior.
+Sources: [MCP 2026-07-28 announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/), [current tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools), [FastMCP 4 GA notes](https://blog.gofastmcp.com/3mufbh2vcv22o).
 
-**Risk:** client UX may expect hidden/disabled tools to be absent entirely; tool-count/context gains may be smaller unless discovery and schema filtering are designed carefully.
+## 3. Catalog design choices for modern mode
 
-### Option B — Use distinct logical servers/configurations for distinct curated surfaces
+The protocol requires a stable list relative to connection/session side effects, not a specific user interface or catalog architecture. Evaluate the following choices against measured task completion and tool-context cost.
 
-Expose curated, stable tool catalogs through separate server identities/configurations or independently configured endpoint surfaces. Each client's available list remains stable for that configured endpoint.
+### Option A — Stable catalog, invocation policy separate from visibility
 
-**Pros:** context budget and tool set are explicit at setup time; authorization boundaries can be cleaner.
+Modern `tools/list` returns the same deterministic catalog. A group toggle can explain groups, show status, or affect a documented capability/configuration state, but cannot mutate the list as a connection-side effect. Every tool call still checks final authorization and whether the underlying Editor capability is actually supported.
 
-**Risks:** more configuration, duplication, routing and release complexity; ensure users do not get accidental cross-project tools.
+**Advantages:** simplest protocol contract and avoids session-visibility dependence.  
+**Costs:** disables some current schema/context savings unless a separate discovery/catalog approach is added.
 
-### Option C — Rely on the newer discovery/capability mechanisms
+### Option B — Fixed, curated server endpoints/profiles
 
-Evaluate server/discover, cache hints, pagination and modern extension surfaces before inventing a custom discovery protocol. Keep common high-frequency actions as individual typed tools; broad specialist schemas may be discoverable or curated on demand only if the resulting client workflow remains compatible with the spec and actual MCP clients.
+Configure different logical server endpoints or registrations with distinct, fixed catalog profiles. A profile's tool list is stable because the endpoint is configured for that catalog, rather than having the same connection mutate its list.
 
-**Pros:** more likely to use protocol-native behavior than a bespoke dispatch layer.
+**Advantages:** preserves bounded tool sets and clearer context budgets.  
+**Costs:** additional configuration and maintenance; endpoint and project identities must not cross. Each server/profile needs deterministic list tests and clear naming.
 
-**Risks:** exact client support varies; the optional discovery call is not mandatory and should not become a hidden precondition for every other operation.
+### Option C — Request-authorization-based catalog filtering
 
-**Do not default to one generic call_any_tool dispatcher.** That may reduce schema tokens but gives up typed schemas, discoverability, per-operation safety annotations and approval clarity.
+Only use a different list when the request's validated authorization actually differs and defines the available capability set. The 2026-07-28 specification permits this. Do not simulate it with a hidden mutable group variable, a client ID alone, or ordinary tool-call arguments. The target's local configurations must not invent authorization where none exists.
 
-## 3. Compatibility spike plan
+### Option D — Single generic `call_any_tool` facade
 
-Create an isolated branch or environment before updating the production dependency range. Do not modify this research-only branch's runtime code as part of this report.
+Do not adopt by default. It can shrink the listed tool catalog but moves typed schemas into a wrapper argument, weakens client discovery and makes per-operation annotations/review harder. Benchmark it against the current catalog and existing core-first draft before considering it.
 
-### Phase 1 — Inspect actual FastMCP use
+## 4. FastMCP 4 migration gate
 
-Audit imports, decorators, context/session access, auth middleware, transports, tool visibility, resources, prompts, tasks/jobs, test fixtures and CLI. Search for every FastMCP 3-specific API and ctx.session_id/per-session registry assumption. Document each v4 API replacement or confirmed compatible behavior.
+FastMCP's [GA announcement](https://blog.gofastmcp.com/3mufbh2vcv22o) (2026-08-31) reports support for the 2026-07-28 protocol and older clients. Treat this as SDK capability evidence, not proof of target compatibility.
 
-### Phase 2 — Lock down behavior in existing tests
+Before modifying the dependency range, audit:
 
-Add tests before migration:
-- tool manifest matches actual registered tools;
-- stable tool ordering;
-- repeated tools/list does not change because of a preceding manage_tools call on modern mode;
-- authorized request-level filtering behaves correctly and does not leak between users/projects;
-- tool-group state cannot silently grant permission to privileged calls;
-- all resources/prompts/auth/transport routes keep correct instance isolation;
-- operation/job/snapshot handles function without a transport session and reject stale/foreign handles;
-- response caching cannot reuse private/project-specific results across principals or Unity instances.
+1. `Context` APIs: `enable_components`, `disable_components`, `reset_visibility`, and especially private `_get_visibility_rules`.
+2. Tool/resource/prompt registration wrappers and visibility filtering.
+3. Middleware and context access in both HTTP and stdio paths.
+4. Session-state assumptions in `manage_tools`, `unity_instance_middleware`, connection selection, and tool/resource registries.
+5. Modern headers and protocol metadata; errors when the header set is invalid or mismatches the body.
+6. Tool result serialization, annotations/schema parity, list caching hints and change notifications.
+7. Python 3.10+ supported range, Windows/macOS/Linux packaging, lockfile and CLI startup.
 
-### Phase 3 — Protocol matrix
+No dependency-range relaxation until a specific FastMCP 4 version is locked and those API checks plus the protocol tests pass.
 
-Run tests with:
-1. FastMCP 4 client in modern auto mode;
-2. FastMCP 4 client pinned to legacy mode;
-3. existing supported legacy clients/transports;
-4. stateless modern HTTP with more than one server replica or a simulation of requests reaching different instances;
-5. stdio and the project's supported HTTP/auth configurations;
-6. tool calls that need extra input/approval, if elicitation/input-required flows are used;
-7. capability changes and tool-list subscriptions where clients support them.
+## 5. Required compatibility test matrix
 
-### Phase 4 — Measure behavior, not just green unit tests
+| Test | Setup | Pass condition |
+|---|---|---|
+| Stable catalog | Modern client calls `tools/list`, invokes `manage_tools`, then lists again. | Tool names/order do not change because the preceding tool call mutated connection/session visibility. |
+| Legacy groups | Client forced/pinned to legacy protocol. | Existing activate/deactivate/reset behavior works if preserved for legacy mode. |
+| Concurrent callers | Two clients call group and regular tools concurrently. | No cross-client or cross-project visibility leakage. |
+| Request authorization | Two validated authorization contexts with different allowed capability sets, if auth is supported. | Catalog differences follow only the authoritative request credentials. |
+| Reconnect/stateless request | Modern HTTP calls are sent without a protocol session, including a simulated route to another server process. | Every call routes to the intended project/Unity instance using explicit identity; no hidden connection affinity is required. |
+| Required HTTP metadata | Modern Streamable HTTP requests with correct, missing and inconsistent standard routing/version headers. | Correct requests succeed; unsupported/invalid cases fail with deterministic diagnostics. |
+| Cache hints | Stable and changing lists, private/project-specific catalog. | Stable deterministic order; TTL and cache scope match actual stability/privacy; one project's catalog is not reused for another. |
+| Schema parity | Enumerate registered tools and compare visible names, input schemas, required/default fields and annotations with the registry. | No drift, missing required arguments, or exposure of injected server context. |
+| Change notification | Change the catalog through any supported reconfiguration path and connect modern/legacy listeners. | Only supported semantics are used; cached lists expire or invalidate correctly. |
+| Existing workflows | Tool groups, test polling, scene/resource reads, custom tools, auth/CLI/client setup on all supported transports. | No behavior regression after protocol negotiation or SDK migration. |
 
-Record:
-- initialization/discovery and first-call latency;
-- tool-list bytes/tokens and whether order/hashes stay stable;
-- context footprint after group selection compared with legacy mode;
-- auth failures, cross-project/tenant isolation and retries;
-- job/capture continuation after reconnect or alternate server replica;
-- test/CI duration and environment compatibility.
+Record protocol version, FastMCP version, transport, client identity and result for every case. Existing Python tests, a real protocol client test, and live Unity Editor integration tests are separate layers; one cannot substitute for the others.
 
-### Phase 5 — Make the migration decision
+## 6. Decision
 
-Only update pyproject.toml/lock after the matrix passes. If v4 exposes incompatible behavior, decide whether to shim legacy mode or defer release; don't leave a broad >=3,<5 range without tested semantics. Record the exact FastMCP version and lockfile state in the release evidence.
+**Status: P1 — investigate; do not yet implement a dependency upgrade.**
 
-## 4. Recommended conclusion for now
+The current target's per-session component visibility is the specific modern-protocol conflict. The leading next step is an isolated prototype that runs FastMCP 4 against the existing tests, makes the modern catalog stable, and preserves legacy group behavior only where the negotiated protocol supports it. Compare the stable catalog and fixed-profile endpoint options using schema token cost, operation discoverability, additional round-trips, isolation and end-to-end Unity task success.
 
-**Decision: INVESTIGATE; prioritize as P1.**
+## Sources
 
-A modern stateless protocol strategy is needed because of a concrete mismatch between target per-session tool visibility and the new tools/list rule. FastMCP v4 is the leading candidate because it supports both modern and legacy eras, but the application migration surface remains untested. Keep the existing dependency pin until a controlled compatibility spike has a passing test matrix.
-
-### Source references
-
-- [MCP 2026-07-28 Tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
-- [MCP 2026-07-28 announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/)
+- [MCP 2026-07-28 Tools specification — capabilities, stable lists, deterministic order and cache hints](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
+- [MCP 2026-07-28 specification announcement — stateless protocol and headers](https://blog.modelcontextprotocol.io/posts/2026-07-28/)
+- [FastMCP 4 GA announcement — dual modern/legacy support and breaking changes](https://blog.gofastmcp.com/3mufbh2vcv22o)
 - [FastMCP v4.0.0 release notes](https://github.com/PrefectHQ/fastmcp/releases/tag/v4.0.0)
-- [FastMCP v4 protocol support notes](https://github.com/PrefectHQ/fastmcp/blob/main/dev-docs/v4-notes/protocol-2026.md)
 - [Target dependency manifest](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/pyproject.toml)
-- [Target tool-group manager](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/manage_tools.py)
+- [Target session-based tool group manager](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/manage_tools.py)
