@@ -600,3 +600,15 @@ Added [DETERMINISTIC_GENERATOR_LIFECYCLE_REVIEW.md](DETERMINISTIC_GENERATOR_LIFE
 Evidence links: [ManageScript.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageScript.cs), [refresh_unity.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/refresh_unity.py), [editor_state.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/resources/editor_state.py), [ExecuteMenuItem.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteMenuItem.cs), [execute_menu_item.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/execute_menu_item.py).
 
 This was a documentation/source-review pass only. No Unity Editor or repository tests were run.
+
+
+### Follow-up: compile-result and scene-validator semantics
+
+A second source pass checked the underlying C# implementations rather than just the Python wrappers:
+
+- `RefreshUnity.cs` returns `compile_started` and a high-level `resulting_state`, but does not expose compiler diagnostics or a success/failure result. For Unity 6+, it deliberately returns once compilation has started; the server wrapper polls editor state across the reload.
+- `EditorStateCache.cs` records compile started/finished timestamps and reload edges across the domain boundary, but not the compiler error set.
+- `ReadConsole.cs` has severity/text filtering and pagination, but no time-based or run-correlated cursor; console-diffing is therefore an imperfect fallback.
+- `ManageScene.ValidateScene` operates on `SceneManager.GetActiveScene()`, traverses all descendants, reports missing scripts and missing prefab assets, and can remove missing scripts when auto-repair is enabled. It is neither an output-path-scoped generator check nor a narrow validator.
+
+The lifecycle review now records these facts and narrows its recommendation: add a correlated compiler-result contract and generator run receipt only if existing receipt/report mechanisms cannot meet the acceptance tests. Avoid making active-scene full-hierarchy validation or auto-repair part of the default generator loop. Source links: [RefreshUnity.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/RefreshUnity.cs), [EditorStateCache.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/EditorStateCache.cs), [ReadConsole.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ReadConsole.cs), [ManageScene.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageScene.cs).

@@ -38,6 +38,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Review GameObject deletion's Undo gap against Unity's documented Undo contract and the upstream round-trip regression test; later reclassify it as deferred for the script-first agent workflow.
 - [x] Incorporate the agent's deterministic scene-generation/regeneration workflow as the default authoring assumption and downgrade direct scene CRUD recommendations.
 - [x] Deep-audit script edit guards, compile/reload readiness, menu-item invocation semantics and missing generator completion receipts.
+- [x] Inspect the underlying RefreshUnity, EditorStateCache, ReadConsole and ManageScene C# contracts to separate compile-start/readiness from compile success.
 - [ ] Enumerate and classify direct forks of the target/upstream using a reproducible complete listing.
 - [ ] Systematically review meaningful forks-of-forks and all fork candidates with ahead-of-upstream code.
 - [ ] Diff the high-value candidates file-by-file and map changes to all corresponding target handlers/tests.

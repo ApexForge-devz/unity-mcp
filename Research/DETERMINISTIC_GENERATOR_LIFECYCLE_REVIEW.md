@@ -53,11 +53,13 @@ This is a sound foundation. Do not replace it with blind whole-file rewrites or 
 
 ### 2. Readiness is not compile-success evidence
 
-The server's `refresh_unity` operation can request compilation, wait for `mcpforunity://editor/state` to report readiness, and time out if readiness is not restored. The resource has fields such as `is_compiling`, `is_domain_reload_pending` and compile/reload timestamps.
+The C# `RefreshUnity` handler has more nuance than a simple refresh call: when compilation is requested it reports whether the compile-start edge was observed (`compile_started`) and the resulting high-level state. On Unity 6+, it returns after the compile has started rather than waiting through the domain reload; the Python wrapper then polls `mcpforunity://editor/state` until the Editor is ready or times out. The editor-state cache retains compile/reload flags and timestamps across the relevant reload boundary using SessionState.
 
-That establishes an Editor lifecycle boundary, not a successful-build result. The observed readiness schema does not carry a structured list of Unity compiler errors. Source-level `validate_script` is helpful before the compile, but should not be described as equivalent to the project's actual Unity compilation result.
+That establishes a useful lifecycle signal, but not a successful-build result. `RefreshUnity` does not return the compiler error set or a compile-success boolean, and the editor-state schema does not carry compiler diagnostics. Source-level `validate_script` is helpful before the compile, but should not be described as equivalent to the project's actual Unity compilation result.
 
-**Recommendation:** after a script change, the workflow must distinguish (a) source validation, (b) Unity compile/reload completion, and (c) absence of blocking compiler errors. Use structured compiler status if the bridge already exposes it; otherwise add the narrowest reliable diagnostic needed, such as a compile-result snapshot or a bounded compiler-error query. Do not infer compile success from a successful refresh response or a ready Editor alone.
+The existing `read_console` tool can filter error/warning messages and page through entries, but its contract has no timestamp, “since compile started” cursor, or generator/run correlation ID. Taking a before/after log snapshot is a possible interim workaround, but repeated messages, parallel Editor activity or Console changes make that less reliable than a compiler-result delta tied to the compile operation.
+
+**Recommendation:** after a script change, distinguish (a) source validation, (b) compile-start acknowledgement, (c) Unity compile/reload completion, and (d) absence of blocking compiler errors. Prefer a structured compiler-result snapshot correlated to the compile request. If using Console logs as an interim check, capture a baseline and explicitly report its weaker correlation guarantee. Do not infer compile success from a successful refresh response or a ready Editor alone.
 
 ### 3. Menu invocation lacks a completion receipt
 
@@ -69,9 +71,11 @@ The Python wrapper also uses the normal transport call without explicitly choosi
 
 ### 4. Scene validation is not the generator's acceptance test
 
-The current scene tools provide useful scene identity, load/save and general validation functionality. Those operations are not automatically tied to a specific generator invocation or an authored specification. A successful scene save can still contain wrong asset references, unexpected object counts, wrong layers/materials, missing required components or a visually invalid result.
+The current `manage_scene.validate` implementation is narrower than a generator acceptance test, and it is not a targeted query: it gets the active scene, traverses every root and descendant, and checks missing MonoBehaviours and prefab instances whose assets are missing. It caps the detailed issue list at 200. With `auto_repair=true`, it removes missing scripts and marks the active scene dirty. This action neither accepts the generator's output scene path nor checks custom expectations such as item counts, component settings, material/shader configuration, asset identity or visual correctness.
 
-**Recommendation:** put project-specific assertions beside the generator and have it emit a concise validation report. The MCP layer should capture/retrieve that report and expose actionable failures. Avoid turning success verification into a full hierarchy dump.
+Consequently, it can scan a large hierarchy the agent would otherwise avoid reading, validate the wrong scene if another scene is active, and mutate scene state through auto-repair. It remains useful as an explicitly requested broad integrity check after confirming active-scene identity, but should not be the default post-generator validator.
+
+**Recommendation:** put project-specific assertions beside the generator and have it emit a concise validation report. The MCP layer should capture/retrieve that report and expose actionable failures. Prefer assertions scoped to the generated scene/region; do not turn successful generation verification into a full hierarchy walk or an automatic scene repair.
 
 ## Recommended end-to-end operation contract
 
