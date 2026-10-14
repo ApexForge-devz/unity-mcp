@@ -60,3 +60,26 @@ Results:
 - Forks of forks and renamed forks have not yet been enumerated systematically.
 - Search is relevance-ranked and may omit repositories with generic names; search totals must not be mistaken for all public projects.
 - This document will be updated with repo IDs, branch/commit snapshots, parent links when verifiable, activity status, source-review status, and a reason for exclusion when a candidate is not reviewed in depth.
+
+
+## 5. Snapshot metadata and expanded search coverage
+
+GitHub repository metadata for [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) returned:
+- Fork count: **1,553** (metadata observed 2026-10-14T04:58:04Z)
+- Default branch: beta
+- Stars: 14,923
+- Repository license metadata: MIT
+- Repository not archived at the time of inspection.
+
+A full fork-by-fork inventory cannot be derived from relevance-ranked search pages. The GitHub connector rejected the public forks-list endpoint, so the inventory remains partial pending a complete paginated source. See [FORK_CANDIDATE_REGISTER.md](FORK_CANDIDATE_REGISTER.md) for query details, candidates and per-repository status; see [RESEARCH_LOG.md](RESEARCH_LOG.md) for the evolving coverage ledger.
+
+Expanded searches performed on 2026-10-14:
+- CoplayDev Unity fork:true (25 results)
+- coplaydev-unity-mcp fork:true (24 results)
+- MCPForUnity fork:true (7 results; page 2 empty)
+- Unity AI Game Developer fork:true (100-result page)
+- frame debugger unity-mcp (2 specialist candidates)
+- memory profiler unity-mcp (1 specialist candidate)
+- general unity-mcp fork:true pages 1–10 (100 results per populated page in the sampled pages)
+
+Searches overlap and contain non-forks, derivative packages and unrelated projects. Counts are not additive and do not imply 1,000 unique repositories.
