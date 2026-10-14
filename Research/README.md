@@ -28,6 +28,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Cross-check the target's open draft PR against relevant upstream PRs and current GitHub Actions results.
 - [x] Review the schema compaction middleware and tests for warning retention, measurement quality and protocol-compatibility gaps.
 - [x] Inspect the native modal-answering, liveness sampler, dispatcher queue and scene-change guard paths and identify live-Editor test gates.
+- [x] Compare external job/result-budget patterns against the target's existing test-job manager, pending-response contract and dispatcher queue.
 - [x] Inspect additional upstream lifecycle/configuration PR patches and add source-informed backlog entries for startup readiness, test cleanup, nonblocking UI refresh, config preservation, and prefab overrides.
 - [ ] Enumerate and classify direct forks of the target/upstream using a reproducible complete listing.
 - [ ] Systematically review meaningful forks-of-forks and all fork candidates with ahead-of-upstream code.
@@ -53,6 +54,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Existing draft PR and upstream overlap](DRAFT_PR_AND_UPSTREAM_OVERLAP.md)
 - [Draft PR schema-compaction code review](DRAFT_PR_CODE_REVIEW.md)
 - [Draft PR modal liveness and scene-guard review](DRAFT_PR_MODAL_LIVENESS_REVIEW.md)
+- [Cross-repository operational reliability patterns](OPERATIONAL_RELIABILITY_PATTERNS.md)
 
 ## Important interpretation rules
 
