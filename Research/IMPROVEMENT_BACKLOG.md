@@ -198,20 +198,22 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 ### P2.2 Asset dependency/reference analysis
 
-**Finding:** ManageAsset.GetAssetData has an explicit TODO for extra metadata such as dependencies. A source-reviewed alternative exposes direct/transitive dependencies, reverse dependents, cycles, unused candidates, size impact and reference validation.
+**Target-source finding:** target **ManageAsset.GetAssetData** (blob **69aaf53cc93a0b638d5a10139f4751dc42c13787**, around lines 1034–1120) returns asset identity and optional preview; it still has an explicit TODO for dependencies/importer metadata. The inspected EditMode/Tools directory listing has no clearly named dependency-analysis suite. General asset CRUD/search should not automatically embed graph data because dependency closures can be large.
 
-**Upstream overlap check:** open PR [#1466](https://github.com/CoplayDev/unity-mcp/pull/1466) proposes read-only AssetBundle file listing and bundle-info inspection. Track/validate that proposal instead of adding a duplicate bundle explorer. This is not the same as an AssetDatabase dependency/reverse-reference graph.
+**Alternative source review:** Ozan Kasikci's [AssetDependencyHandler.cs](https://github.com/ozankasikci/unity-editor-mcp/blob/main/unity-editor-mcp/Editor/Handlers/AssetDependencyHandler.cs) exposes direct/recursive dependencies, reverse dependents, size estimates, cycle checks and potentially-unreferenced candidates. Do **not** copy its simplified depth labels (all indirect dependencies become depth 2), script-only/limited cycle traversal, or whole-project reverse scan that calls **GetDependencies** for every candidate. The request-layer tests mock Unity, so they do not prove graph correctness.
 
-**Recommendation — ADAPT:**
-- Implement a narrow paginated analyze_asset_dependencies capability backed by Unity AssetDatabase.
-- Include dependency/dependent graph, reference validation and size impact.
-- Treat “unused” as a review candidate, not an authoritative delete instruction. Explain scan coverage, roots and limitations.
-- Cache only with robust invalidation across imports, moves, deletes, script/domain reload and relevant build-settings changes.
-- Keep analysis separate from asset CRUD/search behavior.
+**Unity API constraints:** [AssetDatabase.GetDependencies](https://docs.unity3d.com/ScriptReference/AssetDatabase.GetDependencies.html) returns asset-file dependency paths; recursive mode includes indirect dependencies and the input path itself. Those references are not necessarily build-required dependencies. [FindAssets](https://docs.unity3d.com/ScriptReference/AssetDatabase.FindAssets.html) returns GUIDs and folder scoping can narrow search. [GetAssetDependencyHash](https://docs.unity3d.com/ScriptReference/AssetDatabase.GetAssetDependencyHash.html) is useful for forward dependency change signals but cannot by itself invalidate a reverse map when another asset starts referencing a target.
 
-**Acceptance tests:** direct and transitive graph, shared dependency, cycles where supported, missing/broken references, folders/packages/built-ins, GUID move, import invalidation, large-project paging, Addressables when supported, conservative false-positive behavior for unused candidates.
+**Recommendation — ADAPT:** add a dedicated read-only **analyze_asset_dependencies** capability rather than expanding every **GetAssetData** response. Start with direct dependencies and an explicit recursive closure; only return depth when a traversal calculated it. Add reverse dependents within an explicitly reported universe (e.g. **Assets** by default and Packages opt-in), returning scan count, scope, duration, completeness, freshness and bounded page/cursor. Use current async-operation conventions for large global scans instead of blocking the Editor or adding a second job system.
 
-**Sources:** [ManageAsset.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageAsset.cs), [Ozan AssetDependencyToolHandler.js](https://github.com/ozankasikci/unity-editor-mcp/blob/main/mcp-server/src/handlers/asset/AssetDependencyToolHandler.js). Inspect the alternative’s Unity-side handler and tests before copying semantics.
+- Treat “unused” as **potentiallyUnreferenced** within a declared scan scope, never as proof of runtime non-use. Serialized graph edges may miss string loads, **Resources**, Addressables, build settings, dynamic content and project-specific runtime workflows.
+- Size reporting must distinguish direct source-file bytes and unique dependency-closure file bytes from build/compressed size or runtime memory. Mark built-in/inaccessible package sizes unknown.
+- If a reverse cache is introduced, invalidate on imported/deleted/moved/moved-from assets, scope/project/build-setting changes and relevant domain reloads. Cache freshness must be visible. A root's forward dependency hash is not a complete reverse-index invalidator.
+- Keep analysis read-only; never automatically delete or move assets based on graph results.
+
+**Acceptance tests:** zero/direct/deep chain/diamond/shared dependency, self-path filtering in recursive results, real depth values, cycle semantics, broken/moved GUIDs, folders/packages/read-only assets, reverse-edge correctness, added-dependent invalidation while target forward hash is unchanged, import/move/delete/domain-reload/project-scope invalidation, cancellation and explicit partial-scan status, deterministic paging/no duplicates, output caps, inaccessible-size handling, conservative unused wording, and no mutation side effects. Benchmark cold/warm scans against a large project, recording asset count, edge count, GetDependencies calls, latency, output bytes and Editor responsiveness.
+
+**Evidence:** [Asset dependency analysis source review](ASSET_DEPENDENCY_ANALYSIS_REVIEW.md), target [ManageAsset.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageAsset.cs), alternative [AssetDependencyHandler.cs](https://github.com/ozankasikci/unity-editor-mcp/blob/main/unity-editor-mcp/Editor/Handlers/AssetDependencyHandler.cs), and the Unity API links above.
 
 ### P2.3 Frame Debugger capture depth and consistency
 

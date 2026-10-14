@@ -466,3 +466,24 @@ Newly confirmed target details:
 Decision refined: modern mode needs a stable catalog or fixed configured tool-profile endpoint; only real, validated per-request authorization can justify a request-specific list. Legacy per-session group behavior can be retained only if negotiated mode and FastMCP compatibility tests prove it remains supported. A version bump alone is not a solution. The doc adds a client/protocol compatibility matrix plus acceptance tests for catalog stability, headers, reconnects, explicit Unity identity, cache privacy, and schema parity.
 
 Authoritative references: [MCP tools spec](https://modelcontextprotocol.io/specification/2026-07-28/server/tools), [MCP release announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/), [FastMCP 4 GA notes](https://blog.gofastmcp.com/3mufbh2vcv22o). No tests or runtime migration were run.
+
+
+## Continued source review — asset dependency/reference analysis (2026-10-14)
+
+Added [ASSET_DEPENDENCY_ANALYSIS_REVIEW.md](ASSET_DEPENDENCY_ANALYSIS_REVIEW.md), compared target beta ManageAsset.cs with Ozan Kasikci's Unity-side AssetDependencyHandler.cs, and checked current Unity scripting API docs for AssetDatabase.GetDependencies, FindAssets and GetAssetDependencyHash.
+
+Target source observations:
+- ManageAsset.cs at blob 69aaf53cc93a0b638d5a10139f4751dc42c13787 returns asset identity and optional preview; near its DTO return it retains an explicit TODO for dependencies/importer metadata.
+- Its current search path calls GetAssetData while traversing matches and applies Skip/Take after building all records; dependency expansion should not be added to this default payload.
+- The inspected EditMode/Tools test directory had no clearly named dependency-analysis suite. This is a directory-level observation, not a claim that no related tests exist anywhere.
+
+Alternative source observations:
+- AssetDependencyHandler.cs, blob 439239aec5f2562eb0866fd84fd5e3dafa2e668e, supports dependency closure, reverse dependents, cycles, size impact and potentially-unused candidates.
+- Depth values are simplified to one or two, reverse dependents query every asset, cycle detection is simplified/script-focused with a bounded initial scan, and serialized dependency edges are treated as usage. Its MCP-layer tests mock the Unity connection and therefore do not prove graph correctness.
+
+Official Unity API semantics recorded in the new document:
+- GetDependencies(path, true) includes indirect dependencies and the root path; not every reported edge is necessarily required at build time.
+- FindAssets returns GUIDs and explicit folder scopes can narrow the search.
+- GetAssetDependencyHash aggregates root-dependency state, but is not sufficient by itself to invalidate reverse-reference graphs when a new dependent is added.
+
+The backlog P2.2 now specifies a dedicated read-only, paginated analyzer, explicit scope/completeness/freshness, correct depth, reverse-index invalidation, caveats for Resources/Addressables/string/runtime loads, source-byte versus build-size semantics, and graph/EditMode/performance acceptance tests. No runtime code or tests were changed/run.

@@ -87,6 +87,8 @@ The source establishes the action vocabulary and a working Unity-side handler fo
 
 **Recommended decision:** ADAPT the action design but not the simplifying assumptions. Use Unity AssetDatabase APIs for graph edges; report exact vs inferred fields, cap and page large outputs, include scan scope/build configuration, and make “potentially unreferenced” explicitly conservative. Add Unity EditMode fixtures with known dependency graphs; do not auto-delete.
 
+The deeper source-level comparison and the target's explicit dependency-metadata TODO are documented in [ASSET_DEPENDENCY_ANALYSIS_REVIEW.md](ASSET_DEPENDENCY_ANALYSIS_REVIEW.md). That review also covers reverse-map invalidation, Unity's recursive self-path behavior, scan completeness and size-estimate semantics.
+
 ## 4. Specialist integration principles
 
 - Check current target capability and tests before adding the category: target already has profiling, memory snapshots, VFX groups and extensibility.

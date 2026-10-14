@@ -66,7 +66,7 @@ The repo already groups tools, has tool descriptions and resource-backed state, 
 
 ### 3.5 Asset coverage is broad, but dependency analysis needs specific validation
 
-The current review flags dependency/reference analysis as a likely gap. Before implementation, map current asset metadata and dependency APIs in source, then test a graph with direct/transitive references, cycles, folders, GUID changes, packages, Addressables and generated assets. Report likely-unused candidates, not automatic deletion.
+The gap has now been checked against source: target **ManageAsset.GetAssetData** still has an explicit dependency-metadata TODO. The current manage_asset metadata path does not expose a dependency/reverse-reference graph. The alternative's Unity implementation is useful evidence but overstates depth, uses a costly all-assets reverse scan, and treats serialized references too confidently. See [ASSET_DEPENDENCY_ANALYSIS_REVIEW.md](ASSET_DEPENDENCY_ANALYSIS_REVIEW.md). Before implementation, test direct/transitive references, real graph depths, cycles, folders, GUID moves, package boundaries, reverse-cache invalidation and conservative potentially-unused results. Report candidates, not automatic deletion.
 
 ## 4. Existing capabilities not to rebuild
 

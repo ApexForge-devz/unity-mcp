@@ -51,6 +51,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Research log and coverage gaps](RESEARCH_LOG.md)
 - [Fork candidate register and search coverage](FORK_CANDIDATE_REGISTER.md)
 - [Specialist workflow source review](SPECIALIST_WORKFLOWS.md)
+- [Asset dependency/reference analysis review](ASSET_DEPENDENCY_ANALYSIS_REVIEW.md)
 - [MCP modern/legacy protocol compatibility plan](PROTOCOL_COMPATIBILITY.md)
 - [Recent in-scope upstream proposal review (2026-10-14)](RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md)
 - [Upstream branch, issue and PR tracking](UPSTREAM_BRANCH_COMPARISON.md)
