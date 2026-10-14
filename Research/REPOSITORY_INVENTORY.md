@@ -9,20 +9,19 @@
 |---|---|---|---|
 | [ApexForge-devz/unity-mcp](https://github.com/ApexForge-devz/unity-mcp) | Target implementation | The code this research is intended to improve | Baseline source sampled on `beta`; deeper file-by-file mapping in progress |
 | [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) | Closest upstream | Likely canonical source of the target's architecture and current fixes | README + current source references reviewed; must recheck exact head / compare |
-| [AnkleBreaker-Studio/unity-mcp-server](https://github.com/AnkleBreaker-Studio/unity-mcp-server) | Independent server paired with plugin | Progressive operation/schema discovery, multi-agent scheduling, integrations, operation history | README inspected; source review in progress |
+| [AnkleBreaker-Studio/unity-mcp-server](https://github.com/AnkleBreaker-Studio/unity-mcp-server) | Independent server paired with plugin | Progressive operation/schema discovery, compact JSON results, logical-error normalization, final-route guardrails, editor identity validation | Selected source files reviewed; reported token savings remain unverified here |
 | [AnkleBreaker-Studio/unity-mcp-plugin](https://github.com/AnkleBreaker-Studio/unity-mcp-plugin) | Companion Unity package | Main-thread dispatch, tool routes, status/dashboard, agent scheduling | README inspected; inspect dispatcher and tests next |
-| [kitwright/unity-mcp](https://github.com/kitwright/unity-mcp) | Independent Unity Editor implementation | Tool export profiles, bounded output, stable IDs, editor-thread diagnostics, Undo-aware operations | README inspected; selected source paths known; inspect source next |
-| [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP) | Independent implementation | Asset workflows, custom tool registration, profiling, prompts/resources and package integrations | README inspected; source review in progress |
-| [ozankasikci/unity-editor-mcp](https://github.com/ozankasikci/unity-editor-mcp) | Independent implementation | Editor operations, multi-instance discovery, worktree-aware routing, screenshot and Play Mode workflows | README inspected; source review in progress |
+| [kitwright/unity-mcp](https://github.com/kitwright/unity-mcp) | Independent Unity Editor implementation | Tool export profiles, bounded output, spill handles and Editor-pump diagnostics | Selected source files reviewed; protocol implementation inspected only as an older-protocol reference |
+| [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP) | Independent implementation | Broad tools/skills ecosystem; upstream for a specialist Frame Debugger extension examined separately | README-level review in this pass; deeper source review remains open |
+| [ozankasikci/unity-editor-mcp](https://github.com/ozankasikci/unity-editor-mcp) | Independent implementation | Worktree-aware instance identity, AssetDatabase dependencies/reverse dependents and reference diagnostics | Server source plus dependency handler/tests sampled; simplified graph and unused-asset semantics documented |
 | [mitchchristow/unity-mcp](https://github.com/mitchchristow/unity-mcp) | Independent implementation / possible derivative ancestry to verify | Resources, prompts, event/history-oriented workflows and current Unity support | README inspected; ancestry and source differences unverified |
-| [pushkar-env/unity-mcp](https://github.com/pushkar-env/unity-mcp) | Independent implementation | .NET server/editor bridge with READ/WRITE/DESTRUCTIVE permissions and optional approval prompts | README inspected; verify repo identity and inspect enforcement/tests |
-| [CoderGamester/mcp-unity](https://github.com/CoderGamester/mcp-unity) | Independent/earlier implementation | Alternate protocol/server architecture and established workflow surface | Candidate; not yet source-reviewed |
+| [pushkar-env/unity-mcp](https://github.com/pushkar-env/unity-mcp) | Independent implementation | .NET server/editor bridge with READ/WRITE/DESTRUCTIVE permissions and optional approval prompts | Architecture docs and README reviewed; actual enforcement tests remain to inspect |
+| [CoderGamester/mcp-unity](https://github.com/CoderGamester/mcp-unity) | Independent implementation | Security/auth regression tests, bounded retry backoff, startup cleanup checks and batch Undo-group pattern | Source and test files reviewed; atomic rollback claim has important side-effect limits |
 | [isuzu-shiranui/UnityMCP](https://github.com/isuzu-shiranui/UnityMCP) | Independent/derivative candidate | Potential useful divergent capabilities | Candidate; relationship and source not reviewed |
 | [FunplayAI/funplay-unity-mcp](https://github.com/FunplayAI/funplay-unity-mcp) | Independent/derivative candidate | Potential newer multi-tool Unity workflow design | Candidate; relationship and source not reviewed |
 | [akiojin/unity-mcp-server](https://github.com/akiojin/unity-mcp-server) | Independent/derivative candidate | May include server architecture useful for comparison | Candidate; relationship and source not reviewed |
 | [killop/puerts-unity-mcp](https://github.com/killop/puerts-unity-mcp) | Specialist integration | Large codebase, likely relevant to scripting/JS bridge integration | Candidate; specialist relevance to baseline not yet established |
 | [meta-quest/Unity-MCP-Extensions](https://github.com/meta-quest/Unity-MCP-Extensions) | Specialist extension | Unity/Quest ecosystem and possible extension patterns | Candidate; inspect if it has reusable MCP/editor integration patterns |
-| [mitchchristow/unity-mcp](https://github.com/mitchchristow/unity-mcp) | Independent implementation | Potentially useful resources/prompts/event history | README sampled; further source audit required |
 
 ## 2. Search methods used so far
 
@@ -83,3 +82,17 @@ Expanded searches performed on 2026-10-14:
 - general unity-mcp fork:true pages 1–10 (100 results per populated page in the sampled pages)
 
 Searches overlap and contain non-forks, derivative packages and unrelated projects. Counts are not additive and do not imply 1,000 unique repositories.
+
+
+## 6. Source-review status update
+
+As of the latest pass, detailed files have been inspected for:
+- AnkleBreaker Studio (progressive tool tiers, result normalization, discovery and bridge identity);
+- KitWright (request handler, tool export profiles, editor-thread helper);
+- Ozan Kasikci (server instance registry and AssetDatabase dependency handler/tests);
+- CoderGamester (batch implementation, auth/security tests, retry/cleanup tests and path handling tests);
+- Ozymandros (tool-contract/observability docs, staged validation docs and path resolver tests);
+- Pasha/Sabri Frame Debugger and Memory Profiler specialist extensions;
+- VRCLearn and czmomocha upstream-derived branches.
+
+Ivan Murzak and Mitch Christow remain at README-level in this pass. Several search-derived fork candidates remain metadata/README/compare-only. The coverage blocker is not the absence of useful leads; it is inability to retrieve/paginate the authoritative 1,553-item upstream fork listing with the currently exposed connector.
