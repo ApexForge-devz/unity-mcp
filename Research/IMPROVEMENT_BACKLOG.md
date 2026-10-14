@@ -45,19 +45,37 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Evidence:** [ExecuteCode.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteCode.cs), design comparison [Pushkar-Env](https://github.com/pushkar-env/unity-mcp).
 
-### P0.3 ZIP expansion/resource limits
+### P0.3 ZIP expansion and archive metadata limits
 
-**Finding:** SafeZipExtractor.cs already resolves entry paths to prevent Zip-Slip and filters extensions through an allowlist. Existing SafeZipExtractorTests.cs verifies normal extraction, disallowed extensions, and traversal rejection. The inspected implementation iterates archive entries and copies entry streams, but caps on entry count or expanded byte totals were not evident; the existing tests do not cover expansion quotas.
+**Finding:** target SafeZipExtractor already rejects Zip-Slip/path escapes and supports an extension allowlist, but no entry-count, per-entry expanded-byte, total expanded-byte, compression-ratio or pre-archive metadata budget was evident in the inspected implementation. The directly confirmed upstream-derived fork [ykh09242/unity-mcp](https://github.com/ykh09242/unity-mcp) adds `ZipMetadataPreflight`, ZIP64/EOCD consistency checks, 4,096-entry, 512 MiB-per-entry, 2 GiB-total and 200:1-ratio defaults, cancellation-aware streaming, `CreateNew` writes and cleanup of files created by a failed extraction.
 
 **Recommendation — ADAPT:**
-- Keep path-containment and extension-allowlist defenses.
-- Add hard caps for entry count, per-entry expanded bytes, total expanded bytes, destination depth/path length, and optionally suspicious compression ratios.
-- Enforce expanded-byte caps while streaming, not merely by trusting ZIP directory metadata.
-- Fail with sanitized errors and clean up partial output according to an explicit import policy.
+- Keep current target path-containment and extension-allowlist protections.
+- Reject excessive/inconsistent ZIP central-directory metadata **before** `ZipArchive` materializes all entries.
+- Add hard caps for entry count, per-entry expanded bytes, aggregate expanded bytes and a tested compression-ratio policy; use overflow-safe arithmetic.
+- Enforce actual expanded byte counts while streaming, not only advertised metadata.
+- Keep cancellation responsive and never overwrite pre-existing files. Track cleanup ownership so failed imports remove only files/folders created by that extraction.
+- Ensure all provider archive import paths pass the inert asset allowlist; unknown archive formats fail closed.
 
-**Acceptance tests:** keep existing traversal/extension/normal-entry cases and add absolute path, both slash styles, duplicate/case-colliding paths, many tiny entries, one oversized entry, total oversized archive, malformed ZIP, partial-failure cleanup, pre-existing-file conflict, and safe nested directories.
+**Acceptance tests:** normal archives; ZIP64; malformed/inconsistent EOCD and central-directory bounds; split archive; many tiny entries; oversized entry/total; high expansion ratio; paths with Windows and Unix separators; absolute/drive/colon/path traversal paths; duplicate/case-colliding targets; allowed/disallowed extensions; cancellation and injected write failure; pre-existing output remains untouched; cleanup only removes owned artifacts; safe nested paths. Run the EditMode suite on every supported Unity/.NET profile.
 
-**Evidence:** [SafeZipExtractor.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/SafeZipExtractor.cs). Target beta and upstream main have the same inspected blob at this snapshot; this limitation is not resolved merely by moving to upstream main. See [UPSTREAM_BRANCH_COMPARISON.md](UPSTREAM_BRANCH_COMPARISON.md).
+**Evidence:** [target SafeZipExtractor.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/SafeZipExtractor.cs), fork [SafeZipExtractor.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/SafeZipExtractor.cs), [ZipMetadataPreflight.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/ZipMetadataPreflight.cs), [ArchiveLimitSecurityTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/ArchiveLimitSecurityTests.cs), [ZipMetadataSecurityTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/ZipMetadataSecurityTests.cs). The target's inspected path had no matching quota/preflight tests.
+
+### P0.4 Validate and bound provider artifact downloads
+
+**Finding:** target AssetGen's `UnityWebRequestTransport` uses `DownloadHandlerBuffer` for the general API path and its `HttpRequestSpec` has no provider-artifact purpose field. The inspected source lacks a shared hard body cap and a provider-specific validation step for untrusted model/image/audio result URLs and their redirects. Fork ykh09242 adds `DownloadProvider`, a 32 MiB `BoundedDownloadHandler` for API responses, a 512 MiB artifact byte limit, manual redirect handling, and provider host plus public DNS/IP checks on every hop. Its tests also assert that rejected URLs fail before DNS/network access and that streamed bodies are bounded when Content-Length is absent or false.
+
+**Recommendation — ADAPT with a separately validated transport design:**
+- Add a capped streaming response handler for provider API responses; return an explicit error if the limit is exceeded instead of returning a partial/normal-looking payload.
+- Distinguish authenticated provider API requests from unauthenticated artifact GETs in the request type, and keep redirect policy appropriate to each.
+- For artifact downloads, require HTTPS and exact provider-specific approved hosts; validate every redirect target; reject userinfo/fragments, unexpected ports, IP-literal hosts and any DNS answer set containing non-public addresses.
+- Enforce maximum download size during streaming regardless of Content-Length; add an overall deadline, cancellation and redirect-count limits. Do not log signed artifact URLs or API credentials.
+- Review DNS pinning, Host/SNI and certificate validation carefully across Unity Mono/.NET versions and OSes. Do not cherry-pick a custom HttpWebRequest-to-IP implementation until hostname/certificate behavior is proven in the supported runtime matrix.
+- Verify every provider's currently documented CDN hosts before fixing an allowlist. Fail closed on a new host until the allowlist and regression tests are deliberately updated; no unrestricted-host escape hatch.
+
+**Acceptance tests:** provider/host mismatch; lookalike host suffix/prefix; HTTP, custom port, userinfo, fragment, IP literal and loopback/private/link-local/cloud metadata URLs; mixed public/private DNS answers; IPv4-mapped IPv6 and special IPv6 blocks; each redirect hop revalidated, redirect cap enforced; redirect to another allowed CDN if documented; invalid certificate/hostname rejected; 200/3xx/error bodies capped; missing/false/exact/excess Content-Length; cancellation/deadline; no automatic redirect of API credentials; normal provider artifacts succeed on each supported Unity version and platform. Run network tests with injected DNS/HTTP fakes first, then credential-free live host checks; do not use real API keys in tests.
+
+**Evidence:** [target UnityWebRequestTransport.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/UnityWebRequestTransport.cs), target [HttpRequestSpec.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/HttpRequestSpec.cs), fork [AssetDownloadPolicy.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/AssetDownloadPolicy.cs), [AssetDownloadTransport.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/AssetDownloadTransport.cs), [BoundedDownloadHandler.cs](https://github.com/ykh09242/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Http/BoundedDownloadHandler.cs), and [AssetDownloadTests.cs](https://github.com/ykh09242/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/AssetDownloadTests.cs).
 
 ## P1 — MCP compatibility and context efficiency
 
