@@ -144,7 +144,22 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Sources:** [Target FrameDebuggerOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/Profiler/Operations/FrameDebuggerOps.cs) (blob 0876fdb121755c4bd4d71b1f6219a00f4bf199b8); [target ManageProfiler.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/Profiler/ManageProfiler.cs); [derivative FrameDebuggerMcpTool.cs](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.frame-debugger/Editor/Scripts/FrameDebuggerMcpTool.cs) (blob f9370986c0d0d5924d7ec03b7574f32ce8ca8f52); [derivative FrameCaptureOperation.cs](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.frame-debugger/Editor/Scripts/FrameCaptureOperation.cs); [derivative tests](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.frame-debugger/Tests/Editor/FrameDebuggerTests.cs).
 
-### P2.4 Release/version/source alignment
+### P2.4 Memory Profiler snapshot querying
+
+**Finding:** the target's MemorySnapshotOps can take a .snap file, list snapshots and compare file-level metadata; the source explicitly points object-level comparison back to the Editor window. The [Unity-MCP-MemoryProfiler extension](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler) source has incremental snapshot loading, bounded sessions, query/diff engines, object/reference/path-to-root views and several EditMode test suites.
+
+**Recommendation — INVESTIGATE / ADAPT as an optional specialist capability:**
+- Start with snapshot metadata, category summary and paginated query against loaded snapshots.
+- Use operation/session handles; allow cancellation and explicit close/disposal.
+- Cap concurrent sessions and returned rows, make sort/filter behavior deterministic, and keep the detailed schema outside the default tool surface if not commonly used.
+- Make Unity Memory Profiler package/version requirements explicit and return useful “unsupported package/API” outcomes.
+- Port domain logic into target conventions rather than importing the extension's IvanMurzak plugin framework.
+
+**Acceptance tests:** open/cancel/close lifecycle; bounded session count; paged/sorted/filtered queries; snapshot metadata and summaries; diff rows for positive and negative changes; paths-to-roots/references; invalid or incompatible snapshots; missing/older package; disposal and domain-reload behavior.
+
+**Sources:** [Target MemorySnapshotOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/Profiler/Operations/MemorySnapshotOps.cs); [specialist Tool_MemoryProfiler.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Editor/Scripts/Tool_MemoryProfiler.cs); [SnapshotQueryEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/SnapshotQueryEngine.cs); [source/test analysis](SPECIALIST_WORKFLOWS.md).
+
+### P2.5 Release/version/source alignment
 
 **Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.
 
