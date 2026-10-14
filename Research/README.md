@@ -21,6 +21,8 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Compare several candidate fork heads and identify a stale-snapshot pattern plus a meaningful downstream VRChat/VPM customization.
 - [x] Review source samples from selected independent implementations.
 - [x] Produce an initial source-linked ranked improvement backlog.
+- [x] Expand the candidate register with additional fork searches and specialist repositories.
+- [x] Deepen source-level checks of Frame Debugger, Memory Profiler, and asset dependency analysis.
 - [x] Record remaining limitations, commits and next actions in a dated research log.
 - [ ] Enumerate and classify direct forks of the target/upstream using a reproducible complete listing.
 - [ ] Systematically review meaningful forks-of-forks and all fork candidates with ahead-of-upstream code.
@@ -39,6 +41,8 @@ This folder is a living research record. Findings must be updated as source revi
 - [Independent implementation comparisons](ALTERNATIVES.md)
 - [Consolidated improvement backlog](IMPROVEMENT_BACKLOG.md)
 - [Research log and coverage gaps](RESEARCH_LOG.md)
+- [Fork candidate register and search coverage](FORK_CANDIDATE_REGISTER.md)
+- [Specialist workflow source review](SPECIALIST_WORKFLOWS.md)
 
 ## Important interpretation rules
 
