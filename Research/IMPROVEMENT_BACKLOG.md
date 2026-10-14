@@ -197,6 +197,26 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Evidence:** [Argument normalization source review](ARGUMENT_NORMALIZATION_REVIEW.md), target [read_console.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/read_console.py), [ReadConsole.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ReadConsole.cs), [ExecuteMenuItem.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteMenuItem.cs), upstream [PR #1469](https://github.com/CoplayDev/unity-mcp/pull/1469).
 
+### P1.10 Avoid eager asset hydration before search pagination
+
+**Target-source finding:** SearchAssets in target ManageAsset.cs calls GetAssetData for every match and only applies Skip/Take after the entire result list is built. GetAssetData loads the main asset and can generate a readable texture copy plus PNG/Base64 preview. Thus a small response page can still cause metadata/object/preview work for every match. The current handler also changes an invalid folder scope to null, which silently broadens the query to a project-wide search; pageSize/pageNumber are not validated before offset calculation.
+
+**Upstream proposal:** [PR #1459](https://github.com/CoplayDev/unity-mcp/pull/1459) (open at the 2026-10-14 snapshot) changes the handler to hydrate only page rows, rejects empty/invalid scopes, enforces positive paging values and uses long offset arithmetic. Its new ManageAssetSearchTests asserts that non-page assets stay unloaded, not merely that the result list is short.
+
+**Recommendation — ADAPT / VERIFY upstream state first:**
+- Call GetAssetData only when a matching candidate is within the requested page. Off-page matches should be counted, not loaded or previewed.
+- Reject blank or invalid folder scope rather than falling back to a whole-project search. Keep the Python-side t: query normalization narrow and document path vs search_pattern.
+- Validate pageSize/pageNumber > 0 before scanning and use overflow-safe offset arithmetic.
+- Preserve exact total count/filter semantics if the contract requires them; for date-filtered searches, apply the filter before advancing the logical result index.
+- Keep generatePreview opt-in and default false; do not generate/encode previews for off-page rows.
+- Before changing code, re-check whether #1459 has merged to beta and whether any target patch already provides the same contract.
+
+**Performance boundary:** PR #1459 still materializes the full FindAssets GUID array and scans each candidate to compute exact total count / apply date filters. Its benefit is page-bounded asset hydration/metadata/preview work, not O(page-size) search or constant-time pagination. If exact count becomes optional or an async index is considered later, benchmark and design the contract separately.
+
+**Acceptance tests:** current page hydrates at most pageSize matching assets; last page only hydrates remaining assets; page beyond end hydrates none; preview invocation bounded to returned rows; date filtering and total count remain correct; zero/negative/extreme page values are safe; invalid/empty scope fails without global fallback; the t: normalization shim still handles known client input; stable ordering/paging has no duplicates; compare cold/warm latency, GetAssetData call count, loaded asset count, allocations, preview encoding time and response bytes on a large project.
+
+**Evidence:** [Asset search pagination source review](ASSET_SEARCH_PAGINATION_REVIEW.md), target [ManageAsset.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageAsset.cs), target [manage_asset.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/manage_asset.py), upstream [PR #1459](https://github.com/CoplayDev/unity-mcp/pull/1459).
+
 ## P2 — Reliability and high-value domain work
 
 ### P2.1 Editor main-thread liveness and retry safety

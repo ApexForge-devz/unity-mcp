@@ -100,3 +100,12 @@ Added [ARGUMENT_NORMALIZATION_REVIEW.md](ARGUMENT_NORMALIZATION_REVIEW.md) after
 The PR's important safety invariant is **decode exactly one supported JSON string layer before validation and before the menu blacklist**, while retaining typed Literal schemas and validating the final value. The patch adds BeforeValidator on Read Console action/format, one-layer decoder helpers on the Python and C# boundaries, and tests for nested strings, malformed/unknown actions, quoted-filter preservation and encoded File/Quit denial. The target baseline tests inspected do not cover encoded scalar action/format or encoded menu paths.
 
 Adoption judgment: **ADAPT**, limited to these explicit fields. Do not turn it into recursive or global JSON-string coercion. Tests must run against the pinned FastMCP dependency, and direct/batch C# routes must validate without relying on Python.
+
+
+## Deep source review — PR #1459 asset pagination
+
+Added [ASSET_SEARCH_PAGINATION_REVIEW.md](ASSET_SEARCH_PAGINATION_REVIEW.md) after comparing the current SearchAssets/ GetAssetData implementation, Python manage_asset scope normalization and the exact upstream patch/test file.
+
+Confirmed baseline behavior: each match is passed to GetAssetData before Skip/Take, so it loads every result and can create PNG/Base64 previews for off-page assets. An invalid folder path is set to null scope and then searches across the project. PR #1459 calls GetAssetData only for page rows, rejects blank/invalid scope, validates positive page values, uses long offset math and adds tests checking actual loaded asset state across normal, last, beyond-end and date-filtered pages.
+
+Caveat: the PR still holds the FindAssets GUID array and loops all candidates to compute total count/apply the date filter. Its improvement is O(pageSize) hydration/preview work, while candidate discovery/count remains O(N). Treat the patch as a high-value optimization, but require large-project measurements before claiming latency/peak-memory gains. The PR remained open in the 2026-10-14 metadata snapshot; recheck before implementing so we do not duplicate landed work.

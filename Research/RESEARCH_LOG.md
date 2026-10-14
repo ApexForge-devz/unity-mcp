@@ -515,3 +515,14 @@ Target observations:
 - Inspected target EditMode tests cover regular actions and blacklist behavior but not encoded scalar arguments.
 
 The upstream patch adds an opt-in decoder at the Python/C# boundaries, a Pydantic BeforeValidator before Literal validation, explicit allowed action/format checks, and regression tests including nested-encoded inputs and an encoded File/Quit path. The proposed invariant is one-layer decoding only for action/format/menu-path fields, then validation before dispatch/side effects. No global recursive decoder and no coercion of non-string JSON types. No tests were executed in this research session.
+
+
+## Continued source review — asset search pagination and hydration (2026-10-14)
+
+Added [ASSET_SEARCH_PAGINATION_REVIEW.md](ASSET_SEARCH_PAGINATION_REVIEW.md). Compared the current target ManageAsset.cs source and manage_asset.py shim with upstream PR #1459 patch and the proposed new ManageAssetSearchTests.cs.
+
+Verified target SearchAssets uses AssetDatabase.FindAssets for the full match array, calls GetAssetData for every surviving match (loading the main asset and optionally creating a texture/PNG/Base64 preview), and only then applies Skip/Take. Its invalid folder behavior logs a warning and resets folderScope to null, widening search to the whole project. The Python wrapper has a narrow normalization for a t: query misplaced in path; keep that without retaining the broad C# fallback.
+
+The upstream patch moves GetAssetData into the page window, rejects blank/non-folder scopes instead of global fallback, validates positive pageSize/pageNumber and uses a long offset product. Proposed Unity EditMode tests assert that off-page assets remain unloaded, that last/beyond-end/date-filtered pages have correct loaded counts and that bad scopes/paging do not load assets. The patch was open in metadata checked on 2026-10-14; tests were not run.
+
+Correctness of the performance claim matters: the patch still materializes all AssetDatabase.FindAssets GUIDs and iterates every candidate to compute exact total count and apply date filtering. It reduces the expensive per-asset hydration and preview work to at most pageSize rows, but does not eliminate O(N) scan cost or the GUID array. P1.10 now states that limited claim and requires large-project timing/allocation/preview measurements before asserting a speedup. No runtime code or tests were changed/run.
