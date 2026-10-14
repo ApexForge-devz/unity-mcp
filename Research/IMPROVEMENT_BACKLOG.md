@@ -283,38 +283,6 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 **Source:** [Target preflight.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/preflight.py), [target run_tests.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/run_tests.py), [bgr change](https://github.com/bgr/unity-mcp/commit/11cfd4caac713c0b59846f2d0203e148e5977d7c).
 
 
-### P2.14 Profiler ownership, data fidelity and sample-size gates
-
-**Finding:** PerfAgent-Unity's ProfilerOwnership records prior Profiler state/history and restores it after domain reload; its rule engine declines dynamic conclusions when sample count is insufficient and labels zero-frame captures explicitly. Its data-fidelity tests prefer ProfilerRecorder metrics where available and propagate unavailable values as NaN/explicit notes rather than silently substituting weaker numbers.
-
-**Recommendation — ADAPT to existing profiling tools:**
-- If a diagnostic tool changes Profiler enabled/profileEditor/history settings, capture and restore user state; use SessionState or equivalent if domain reload interrupts cleanup.
-- Bound capture history/memory during automated sampling and report if the requested capture target or history cap could not be configured.
-- Keep metric provenance (ProfilerRecorder vs estimated GC delta, file metadata vs object-level snapshot, exact vs heuristic asset reference) explicit in results.
-- Add a minimum-sample gate for percentile/statistical conclusions and an explicit no-frames error state. Do not emit plausible zero/default data when a counter is unavailable.
-- Prefer read-only analysis plus user-confirmed mutations for performance fixes; profiling/diagnostics should not silently change the project.
-
-**Acceptance tests:** profile was originally enabled/disabled; profileEditor/history restoration; domain reload during capture; manual Profiler open; unable to set history bound; no frames; too few frames; missing recorder; GC event negative delta; noisy/unreliable metric is marked unavailable; clean snapshot creates no false-positive gold rules.
-
-**Sources:** [PerfAgent ProfilerOwnership.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Editor/Core/ProfilerOwnership.cs), [PerfRuleEngine.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Editor/Analysis/PerfRuleEngine.cs), [PerfDataFidelityTests.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Tests~/Editor/PerfDataFidelityTests.cs), and [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md).
-
-
-### P2.15 Bound Editor dispatcher backlog and share the frame budget fairly
-
-**Finding:** the target's `TransportCommandDispatcher.ProcessQueue` takes every queued non-executing command from its global Pending dictionary and processes the ready list in one Editor update pass. Per-request cancellation is already implemented and checked before handler dispatch; once a command is running, cancelling its caller does not undo the work. The inspected dispatcher does not show a hard pending-count/serialized-byte cap or a per-update count/time slice. A stalled native modal can leave incoming requests retained until cancellation/disconnect, and after the Editor resumes a large ready list can produce a long update.
-
-**Recommendation — ADAPT only after a focused characterization test:**
-- Add pending-command count and serialized-byte admission limits with an explicit retryable/backpressure response; don't retain an unlimited number of command JSON bodies while the Editor is blocked.
-- Preserve FIFO/order where required and one active Unity API command at a time. If processing multiple short commands in one update, use a bounded item/time budget and continue the rest on later updates.
-- Keep cancellation's guarantee precise: cancel before a command begins can prevent its side effects; cancellation after the handler starts means outcome may be unknown or still in progress.
-- Return a correlation/job handle for long-running operations so callers poll the original operation instead of repeating a mutation.
-- Log queue count/oldest age and operation status, not full command payloads or secrets.
-- Check the transport registration and async-handler continuation path for races before adding any queue/timeout refactor; the target already has queue locking, active request state and cancellation cleanup.
-
-**Acceptance tests:** queue count/byte cap, flood during modal stall, FIFO under slicing, no concurrent Unity API execution, cancel before start, cancel during active handler, disconnect cleanup, domain reload with queued commands, one slow command plus many fast commands, queue age observability, and no duplicate side effects when a client times out and polls.
-
-**Source references:** target [TransportCommandDispatcher.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/Transport/TransportCommandDispatcher.cs), target [TestJobManager.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/TestJobManager.cs), and [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md).
-
 ### P2.5 Release/version/source alignment
 
 **Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.
@@ -383,6 +351,37 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 **Acceptance tests:** file unset/empty/valid UTF-8/BOM/invalid UTF-8/unreadable/oversized; command-line vs env precedence; both transports; default instructions preserved; shared server with different projects cannot receive the wrong project instructions; restart applies changes; errors omit sensitive file contents.
 
 **Source:** [Upstream PR #1461](https://github.com/CoplayDev/unity-mcp/pull/1461).
+
+### P2.14 Profiler ownership, data fidelity and sample-size gates
+
+**Finding:** PerfAgent-Unity's ProfilerOwnership records prior Profiler state/history and restores it after domain reload; its rule engine declines dynamic conclusions when sample count is insufficient and labels zero-frame captures explicitly. Its data-fidelity tests prefer ProfilerRecorder metrics where available and propagate unavailable values as NaN/explicit notes rather than silently substituting weaker numbers.
+
+**Recommendation — ADAPT to existing profiling tools:**
+- If a diagnostic tool changes Profiler enabled/profileEditor/history settings, capture and restore user state; use SessionState or equivalent if domain reload interrupts cleanup.
+- Bound capture history/memory during automated sampling and report if the requested capture target or history cap could not be configured.
+- Keep metric provenance (ProfilerRecorder vs estimated GC delta, file metadata vs object-level snapshot, exact vs heuristic asset reference) explicit in results.
+- Add a minimum-sample gate for percentile/statistical conclusions and an explicit no-frames error state. Do not emit plausible zero/default data when a counter is unavailable.
+- Prefer read-only analysis plus user-confirmed mutations for performance fixes; profiling/diagnostics should not silently change the project.
+
+**Acceptance tests:** profile was originally enabled/disabled; profileEditor/history restoration; domain reload during capture; manual Profiler open; unable to set history bound; no frames; too few frames; missing recorder; GC event negative delta; noisy/unreliable metric is marked unavailable; clean snapshot creates no false-positive gold rules.
+
+**Sources:** [PerfAgent ProfilerOwnership.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Editor/Core/ProfilerOwnership.cs), [PerfRuleEngine.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Editor/Analysis/PerfRuleEngine.cs), [PerfDataFidelityTests.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Tests~/Editor/PerfDataFidelityTests.cs), and [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md).
+
+### P2.15 Bound Editor dispatcher backlog and share the frame budget fairly
+
+**Finding:** the target's `TransportCommandDispatcher.ProcessQueue` takes every queued non-executing command from its global Pending dictionary and processes the ready list in one Editor update pass. Per-request cancellation is already implemented and checked before handler dispatch; once a command is running, cancelling its caller does not undo the work. The inspected dispatcher does not show a hard pending-count/serialized-byte cap or a per-update count/time slice. A stalled native modal can leave incoming requests retained until cancellation/disconnect, and after the Editor resumes a large ready list can produce a long update.
+
+**Recommendation — ADAPT only after a focused characterization test:**
+- Add pending-command count and serialized-byte admission limits with an explicit retryable/backpressure response; don't retain an unlimited number of command JSON bodies while the Editor is blocked.
+- Preserve FIFO/order where required and one active Unity API command at a time. If processing multiple short commands in one update, use a bounded item/time budget and continue the rest on later updates.
+- Keep cancellation's guarantee precise: cancel before a command begins can prevent its side effects; cancellation after the handler starts means outcome may be unknown or still in progress.
+- Return a correlation/job handle for long-running operations so callers poll the original operation instead of repeating a mutation.
+- Log queue count/oldest age and operation status, not full command payloads or secrets.
+- Check the transport registration and async-handler continuation path for races before adding any queue/timeout refactor; the target already has queue locking, active request state and cancellation cleanup.
+
+**Acceptance tests:** queue count/byte cap, flood during modal stall, FIFO under slicing, no concurrent Unity API execution, cancel before start, cancel during active handler, disconnect cleanup, domain reload with queued commands, one slow command plus many fast commands, queue age observability, and no duplicate side effects when a client times out and polls.
+
+**Source references:** target [TransportCommandDispatcher.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/Transport/TransportCommandDispatcher.cs), target [TestJobManager.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/TestJobManager.cs), and [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md).
 
 ## P3 — Conditional / benchmark-driven enhancements
 
