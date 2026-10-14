@@ -553,3 +553,26 @@ Target GameObjectDelete.cs, blob **74382ef499f4f5bb31b6caf8124c6db40c2162e5**, c
 Upstream PR #1135 replaces the call with Undo.DestroyObjectImmediate and adds a test: create a GameObject, delete through ManageGameObject.HandleCommand, assert absence, invoke Undo.PerformUndo and assert restoration. Official Unity docs for [Undo.DestroyObjectImmediate](https://docs.unity3d.com/ScriptReference/Undo.DestroyObjectImmediate.html) state that it records the deletion so the object can be recreated; [Undo.PerformUndo](https://docs.unity3d.com/ScriptReference/Undo.PerformUndo.html) performs the Editor Undo operation.
 
 The patch is a strong targeted candidate, but the single-object test does not establish multi-target grouping, full hierarchy/component restoration, redo behavior or version-matrix reliability. The backlog P2.18 now requests these cases and distinguishes scene object Undo from asset/file deletion. This review did not run the Unity tests or change runtime code.
+
+
+## Agent workflow update — deterministic script-first scene authoring (2026-10-14)
+
+The agent's scene-authoring workflow is now treated as a hard prioritization constraint. It creates a persistent scene-generation/regeneration script, changes that script when requirements change, and reruns it to reconstruct intended scene state. It does not build the scene through direct GameObject/component CRUD calls and then read the full scene to work out which ad hoc edit was wrong.
+
+Source mapping confirmed in existing target beta wrappers:
+- `manage_script.py` exposes persistent script create/read/delete and a script validation action.
+- `script_apply_edits.py` supports structured method/class/anchor edits and source-edit validation.
+- `manage_scene.py` provides scene lifecycle and validation actions.
+- `execute_menu_item.py` can invoke a project-owned Editor entry point; a controlled generator menu item is one possible run path.
+- `execute_code.py` executes transient in-memory C# method-body code, so it is a useful diagnostic/bootstrap primitive but not the persistent source of truth for scene generation.
+These are separate building blocks; a reliable generator workflow must explicitly handle script compilation/domain reload, invocation identity, output scene ownership, idempotence, save/rollback, targeted assertions and result reporting.
+
+Added [DETERMINISTIC_SCENE_AUTHORING.md](DETERMINISTIC_SCENE_AUTHORING.md), updated [SCOPE.md](SCOPE.md), [METHODOLOGY.md](METHODOLOGY.md), [CURRENT_BASELINE.md](CURRENT_BASELINE.md), and the improvement backlog. The new P1.11 prioritizes source-script editing, compile/reload readiness, explicit generator execution, controlled regeneration, targeted validation and concise actionable diffs.
+
+Reprioritization:
+- Direct GameObject/component CRUD, per-property scene writes, direct prefab-override apply/revert and Undo for direct GameObject deletion are **deferred/general-tool parity**, not agent-path priorities.
+- Their source reviews are retained for provenance but no longer drive the active scene-authoring plan.
+- Scene lifecycle helpers, script/compiler diagnostics, asset/reference resolution, screenshots, Frame Debugger and profiling remain useful when they validate or diagnose a specific generator output.
+- The agent should not read an entire hierarchy by default; the generator should emit compact assertions/summary, with narrow read-only probes only when needed.
+
+This update changes research priorities and documentation only. No runtime source or tests were changed/run.

@@ -13,7 +13,7 @@
 
 ## Scope boundary — MCP to Unity only
 
-[Scope is authoritative in SCOPE.md](SCOPE.md). Include MCP protocol and tool contracts, Python/server-to-Unity transport, Unity Editor dispatch and main-thread behavior, instance/project routing, readiness and domain reload, cancellation/retry/idempotency, tool discovery/schema/results, project-local scenes/GameObjects/components/prefabs/assets, compile/test/Play Mode/build workflows, profiling/diagnostics, and editor tooling.
+[Scope is authoritative in SCOPE.md](SCOPE.md). Include MCP protocol and tool contracts, Python/server-to-Unity transport, Unity Editor dispatch and main-thread behavior, instance/project routing, readiness and domain reload, cancellation/retry/idempotency, tool discovery/schema/results, script-first deterministic scene generation/regeneration, project assets/references, compile/test/Play Mode/build workflows, profiling/diagnostics, and editor tooling. Treat the generator script as scene-authoring source of truth for this agent. Do not prioritize direct GameObject/component CRUD or direct prefab override mutations as the primary scene-building path; use targeted inspection only to validate a specific assertion.
 
 Exclude integrations with external or local generation/inference systems and third-party provider APIs, including Meshy, ComfyUI, Pinokio, hosted image/3D/audio/video generators, provider credentials/SDKs, remote generation jobs, and provider artifact downloads. Do not add them to the backlog. When reviewing a fork with such features, record those features only as out-of-scope context and extract a pattern only if it independently improves in-scope MCP↔Unity behavior without retaining the integration.
 
@@ -63,6 +63,10 @@ Score candidate contributions across these areas:
 - Tests, CI matrix, packaging/release, version compatibility, docs, license/provenance, and maintainer activity.
 
 Do not prioritize feature count. Prefer evidence of correctness, task success, safety, testability, bounded resource usage, and maintainability.
+
+## Scene-authoring evaluation rule
+
+When evaluating a scene-related idea, ask whether it improves the source-script → compile/reload → generator execution → compact validation/report cycle. Prefer deterministic regeneration, bounded diagnostics, stable output and a clear failure/recovery contract. Direct scene CRUD or in-place component/property edits are deferred for the target agent unless there is a specific justified exception (for example, a narrow diagnostic or a one-off migration explicitly requested by the user). Never recommend reading the complete scene as the default way to identify a problem; use the generator's validation output and narrow probes first.
 
 ## 5. Recommendation classifications
 

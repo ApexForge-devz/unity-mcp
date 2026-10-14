@@ -97,3 +97,8 @@ The deeper source-level comparison and the target's explicit dependency-metadata
 - Prefer action-based typed tools with a bounded result contract and session/operation IDs for expensive operations.
 - Test live Unity behavior, not only mocked transport or synthetic fake-backend tests.
 - Keep expensive specialist functionality optional; don't load every detail schema into the default model context.
+
+
+## Agent scene-authoring constraint — generator source, not direct CRUD (2026-10-14)
+
+For this agent, deterministic persistent scene-generation scripts are the authority for authored scene state. Modify the generator and rerun it; do not recommend one-off GameObject/component mutation as the normal scene-building loop. Use existing script creation/structured-editing/validation primitives plus controlled scene lifecycle and targeted validation. Screenshots, Frame Debugger, profiler and narrow read-only queries remain useful to diagnose a specific failed assertion or visual result without a complete hierarchy dump. See [DETERMINISTIC_SCENE_AUTHORING.md](DETERMINISTIC_SCENE_AUTHORING.md).

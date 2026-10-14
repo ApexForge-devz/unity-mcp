@@ -8,7 +8,7 @@
 
 ## Purpose
 
-Systematically evaluate the MCP protocol/server and Unity Editor bridge, their forks and derivative implementations, and independent Unity-editor agent bridges. Recommend only improvements to MCP↔Unity handling: transport and lifecycle correctness, tool discovery/contracts, safe Unity operations, tests, profiling, and project-local workflows. See [SCOPE.md](SCOPE.md) for mandatory inclusions and exclusions.
+Systematically evaluate the MCP protocol/server and Unity Editor bridge, their forks and derivative implementations, and independent Unity-editor agent bridges. For scene authoring, use the agent's script-first pattern: persistent generator source is edited and rerun deterministically; direct GameObject/component CRUD is not the primary workflow. Recommend MCP↔Unity improvements that make that path reliable—script edits, compile/reload, generator invocation, targeted validation, diagnostics, safe results, transport and lifecycle handling. See [SCOPE.md](SCOPE.md) and [DETERMINISTIC_SCENE_AUTHORING.md](DETERMINISTIC_SCENE_AUTHORING.md).
 
 This folder is a living research record. Findings must be updated as source revisions change. It is not authorization to implement every proposed idea.
 
@@ -35,7 +35,8 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Source-review JSON-encoded scalar argument normalization for Read Console and menu execution, including schema validation order and blacklist coverage.
 - [x] Deep-review asset search pagination against target ManageAsset source and the upstream PR's asset-load regression tests.
 - [x] Source-review C# wrapper aliases, compiler-specific error-line translation, and the accuracy of CodeDom/Roslyn hints.
-- [x] Review GameObject deletion's Undo gap against Unity's documented Undo contract and the upstream round-trip regression test.
+- [x] Review GameObject deletion's Undo gap against Unity's documented Undo contract and the upstream round-trip regression test; later reclassify it as deferred for the script-first agent workflow.
+- [x] Incorporate the agent's deterministic scene-generation/regeneration workflow as the default authoring assumption and downgrade direct scene CRUD recommendations.
 - [ ] Enumerate and classify direct forks of the target/upstream using a reproducible complete listing.
 - [ ] Systematically review meaningful forks-of-forks and all fork candidates with ahead-of-upstream code.
 - [ ] Diff the high-value candidates file-by-file and map changes to all corresponding target handlers/tests.
@@ -61,7 +62,8 @@ This folder is a living research record. Findings must be updated as source revi
 - [JSON-encoded scalar argument normalization review](ARGUMENT_NORMALIZATION_REVIEW.md)
 - [Asset search pagination source review](ASSET_SEARCH_PAGINATION_REVIEW.md)
 - [Execute Code diagnostics review](EXECUTE_CODE_DIAGNOSTICS_REVIEW.md)
-- [GameObject deletion and Undo review](GAMEOBJECT_DELETE_UNDO_REVIEW.md)
+- [GameObject deletion and Undo review — deferred for this agent workflow](GAMEOBJECT_DELETE_UNDO_REVIEW.md)
+- [Deterministic script-first scene authoring workflow](DETERMINISTIC_SCENE_AUTHORING.md)
 - [MCP modern/legacy protocol compatibility plan](PROTOCOL_COMPATIBILITY.md)
 - [Recent in-scope upstream proposal review (2026-10-14)](RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md)
 - [Upstream branch, issue and PR tracking](UPSTREAM_BRANCH_COMPARISON.md)
@@ -101,7 +103,7 @@ These source reviews are retained only to preserve the research trail. They are 
 - Are editor-loop liveness diagnostics, mutation retries, idempotency, and local project-file operations sufficiently robust?
 - What asset dependency/reference analysis is missing, and how can results be verified without unsafe auto-deletion?
 - Does the existing Frame Debugger profiling implementation need event identity/capture-stability fixes like those documented in a specialized derivative?
-- Which MCP↔Unity designs measurably improve real tasks rather than merely increasing tool count?
+- Which MCP↔Unity designs improve deterministic script-driven scene generation/regeneration, compilation, validation, diagnostics, and reproducibility—without requiring one-off direct GameObject/component mutation calls?
 - External generator, inference, and provider API integrations are excluded even when found in a fork; assess only independently useful MCP/Unity-side patterns.
 
 ## Existing internal research

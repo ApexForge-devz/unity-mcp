@@ -19,7 +19,7 @@ This is a source/patch review of selected candidates, not a review of every open
 | [#1472](https://github.com/CoplayDev/unity-mcp/pull/1472) | Open; updated 2026-10-13 | Custom tool registration | Uses keyword-only parameters, matching kwargs-based handler invocation and allowing required parameters after optional ones. Tests cover declaration order, requiredness, annotations and defaults. | **Small, well-scoped fix**; verify Python/FastMCP compatibility and generated tool schema. |
 | [#1455](https://github.com/CoplayDev/unity-mcp/pull/1455) | Open; updated 2026-10-10 | C# execution ergonomics | Aliases bare `Object`/`Random` to UnityEngine, preserves explicit `System.Random`, adjusts wrapper line offsets and improves compiler hints. Tests cover compiler routes and line mapping. | **Useful quality fix**; keep wrapper source and reported line numbers aligned across CodeDom, Roslyn and fallback paths. |
 | [#1448](https://github.com/CoplayDev/unity-mcp/pull/1448) | Open; updated 2026-10-07 | Console diagnostics | Adds opt-in exclusion of known MCP-prefixed logs before count/pagination while including MCP logs by default. Tests check paging and preserve project messages that merely mention MCP. | **Useful diagnostic improvement**; keep default behavior and treat prefix matching as a heuristic, not trusted provenance. |
-| [#1135](https://github.com/CoplayDev/unity-mcp/pull/1135) | Open in snapshot; older proposal | Undo semantics for GameObject deletion | Replaces `Object.DestroyImmediate` with `Undo.DestroyObjectImmediate`, plus an Undo round-trip regression test. The baseline still documents its delete path as not undoable. | **Correctness candidate**; validate across supported Unity versions rather than assuming one test context proves behavior. |
+| [#1135](https://github.com/CoplayDev/unity-mcp/pull/1135) | Open in snapshot; older proposal | Undo semantics for direct GameObject deletion | Replaces `Object.DestroyImmediate` with `Undo.DestroyObjectImmediate`, plus an Undo round-trip regression test. The baseline still documents its delete path as not undoable. | **Deferred for the target agent workflow**; retain only as general MCP tool-parity work, not as a scene-authoring priority. |
 | [#1450](https://github.com/CoplayDev/unity-mcp/pull/1450) | Open; updated 2026-10-09 | Fixed Game View resolution | Adds requested/preset/target/allocated render-size readback and an explicit settled/matches-requested result. Uses reflected Editor APIs and waits up to five seconds for render-target readback. | **Lower-priority visual workflow enhancement**; require version tests and explicit state-change wording. |
 | [#1464](https://github.com/CoplayDev/unity-mcp/pull/1464) | Open; updated 2026-10-11 | Optional dependency version selection | Adds exact-version fields and distinguishes an installed package release from detectable native API support; preserves existing dependency selections unless the user changes them. | **Secondary Editor workflow**; never upgrade project dependencies implicitly. |
 
@@ -75,7 +75,7 @@ The result distinguishes requested dimensions, selected preset, Unity's target d
 
 1. Reproduce and validate shared server ownership with two live Unity Editors (#1380).
 2. Track argument-contract fixes (#1469, #1472) and asset-search lazy hydration (#1459), checking upstream status and tests before porting.
-3. Audit CodeDom/Roslyn mapping (#1455), console signal-to-noise (#1448) and Undo semantics (#1135) against project tests.
+3. Audit CodeDom/Roslyn mapping (#1455) and console signal-to-noise (#1448) against project tests. Treat Undo semantics for direct GameObject delete (#1135) as deferred for this agent unless general MCP tool parity is requested.
 4. Consider fixed Game View sizing (#1450) after confirming visual-iteration tasks justify reflected-API maintenance.
 5. Treat exact optional dependency versions (#1464) as secondary; package changes must remain explicit and preserve current project state.
 
@@ -129,3 +129,14 @@ Added [GAMEOBJECT_DELETE_UNDO_REVIEW.md](GAMEOBJECT_DELETE_UNDO_REVIEW.md) after
 The target currently calls Object.DestroyImmediate and comments that this makes deletion non-undoable. PR #1135 replaces it with Undo.DestroyObjectImmediate and tests a handler-level delete → Undo.PerformUndo → restored-object round trip. Unity's current API docs explicitly state that Undo.DestroyObjectImmediate records a destroy operation so an object can be recreated.
 
 Adoption judgment: **ADAPT** the narrow change after running tests. The proposal covers one root object; require additional tests for multi-object grouping, hierarchy/component state restoration, redo, cleanup isolation and supported Unity versions before describing the entire operation as fully Undo-safe. The PR remained open in this snapshot and no Unity tests were run here.
+
+
+## Agent workflow priority correction — script-first scene regeneration (2026-10-14)
+
+The target agent's actual scene-authoring workflow is now explicitly defined in [DETERMINISTIC_SCENE_AUTHORING.md](DETERMINISTIC_SCENE_AUTHORING.md). The persistent generator script is the source of truth; scene changes are made by editing that script and running it again. The agent does not author a scene through direct GameObject/component CRUD calls and then inspect the whole scene to understand what changed.
+
+This changes **implementation priority**, not whether generic Unity-MCP APIs may be useful to other clients:
+- New highest-value scene-workflow item: source-script editing, compile/reload readiness, safe generator invocation, deterministic/idempotent regeneration, targeted code-based validation and concise diffs/reports.
+- Direct serialized-property component writes (#The1Studio), prefab instance override apply/revert (#1462), and Undo safety for GameObject deletion (#1135) are moved out of the active agent-path backlog into deferred general-tool parity.
+- Scene lifecycle, script compile diagnostics, asset/reference resolution, screenshots, Frame Debugger and profiling remain in-scope when used to verify a specific generator output issue. Read-only queries should be targeted; full hierarchy dumps are not the normal validation path.
+- This update changes no runtime code and does not remove any existing tools.

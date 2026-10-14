@@ -8,7 +8,7 @@ This is a research backlog, not a claim that every issue has manifested in produ
 
 ## Executive recommendation
 
-Do not rewrite the architecture or inflate tool count. Keep the Python MCP service plus Unity C# Editor bridge. Prioritize protocol compatibility, privileged-operation policy, resource limits, and truthful/bounded tool contracts. Then improve editor liveness diagnostics, project-local asset reference analysis, and Unity Editor workflows. Add specialist features only after verifying existing profiling coverage and benchmarking value. Do not add external generators, third-party APIs, provider SDKs, or remote generated-asset pipelines.
+Do not rewrite the architecture or inflate tool count. Keep the Python MCP service plus Unity C# Editor bridge. Prioritize protocol compatibility, privileged-operation policy, resource limits, truthful/bounded tool contracts, and the script-first scene generation/regeneration lifecycle. Then improve compile/reload handling, targeted post-generation validation, editor liveness diagnostics, and profiling that provides actionable feedback without reading the entire scene. Direct GameObject/component/prefab mutation is deferred for this agent workflow. Add specialist features only after verifying existing coverage and benchmarking value. Do not add external generators, third-party APIs, provider SDKs, or remote generated-asset pipelines.
 
 ## P0 — Safety and contract correctness
 
@@ -95,21 +95,6 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Source patterns:** [AnkleBreaker identity checks](https://github.com/AnkleBreaker-Studio/unity-mcp-server/blob/main/docs/discovery.md), [Ozan Unity Editor MCP](https://github.com/ozankasikci/unity-editor-mcp).
 
-
-### P1.4 Prevent silent serialized-property write corruption
-
-**Finding:** In target beta, the integer SerializedProperty branch pre-checks that a value looks integer-like, then uses ParamCoercion.CoerceInt(value, 0) / CoerceLong(value, 0). The coercion helpers catch overflow/parse failures and return defaults, so a large LayerMask bit pattern or other out-of-range payload can become 0 while the surrounding tool path reports success. The1Studio's [commit 970ac290](https://github.com/The1Studio/unity-mcp/commit/970ac29098b4b836cd6de596043f5f92aecf508f) adds TryCoerceInt/TryCoerceLong, switches serialized writes to checked conversion, and checks selected reflection writes by readback. Its [ComponentOps.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/ComponentOps.cs) also supports vector/struct leaves in the SerializedProperty path; our inspected target switch currently rejects those leaves as unsupported.
-
-**Recommendation — ADAPT (P1 correctness):**
-- Add explicit TryCoerceInt/TryCoerceLong helpers for mutation paths; preserve permissive/defaulting coercion only where failure-to-default is an intentional read/input behavior.
-- Keep a failed conversion as an error. Never turn an invalid write into a plausible default and success response.
-- Add write-back/readback verification for value-type intermediate properties where CLR reflection works on boxed copies; do not add blind readback for properties where Unity uses nontrivial normalization without defining expected comparison.
-- Add supported vector/struct cases to the SerializedProperty fallback with shared parsers, and document exactly which forms are accepted.
-- Preserve existing native-field/UnityEvent component tests; add coverage for large LayerMask values, integer boundaries/overflow, long bounds, bad strings, vector object/array forms, and no-mutation-on-failure.
-
-**Acceptance tests:** int/long min/max and just-outside bounds; very large JSON integer; invalid/empty string; LayerMask values with high bits; known vector/Quaternion/Color/Rect/Bounds/AnimationCurve shapes; malformed shape rejected; failed conversion leaves prior serialized value intact; reflected struct-property write either persists or returns a failure. Run in Unity EditMode across supported versions.
-
-**Evidence:** target [ComponentOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/ComponentOps.cs) blob ec9dc63684595811ac1c552271201ce5b65fa704; target [ParamCoercion.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/ParamCoercion.cs) blob 38a8e32d74fcfabfc7bd82a8af7b64363308278d; The1Studio's [checked coercion commit](https://github.com/The1Studio/unity-mcp/commit/970ac29098b4b836cd6de596043f5f92aecf508f) and [vector property commit](https://github.com/The1Studio/unity-mcp/commit/64279d6db40c46d2ffefebc1285b3fbbb5ddc59e).
 
 ### P1.5 Re-evaluate operation-level capability discovery against a facade reference
 
@@ -216,6 +201,26 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 **Acceptance tests:** current page hydrates at most pageSize matching assets; last page only hydrates remaining assets; page beyond end hydrates none; preview invocation bounded to returned rows; date filtering and total count remain correct; zero/negative/extreme page values are safe; invalid/empty scope fails without global fallback; the t: normalization shim still handles known client input; stable ordering/paging has no duplicates; compare cold/warm latency, GetAssetData call count, loaded asset count, allocations, preview encoding time and response bytes on a large project.
 
 **Evidence:** [Asset search pagination source review](ASSET_SEARCH_PAGINATION_REVIEW.md), target [ManageAsset.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageAsset.cs), target [manage_asset.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/manage_asset.py), upstream [PR #1459](https://github.com/CoplayDev/unity-mcp/pull/1459).
+
+### P1.11 Make script-first deterministic scene generation the primary authoring contract
+
+**Workflow requirement:** for this AI agent, a persistent scene-generation/regeneration script is the source of truth. When the scene needs a change, update that script and rerun it; do not create, tweak or delete scene GameObjects/components through a sequence of one-off MCP CRUD calls and then infer what changed by reading the entire scene. This is a workflow constraint, not a claim that the existing direct CRUD APIs should be removed for other clients.
+
+**Current target primitives observed:** the MCP server already exposes `create_script`, `manage_script(read/create/delete)`, `validate_script`, `script_apply_edits`/text edits, `manage_scene` lifecycle/validation actions, `execute_menu_item`, and transient `execute_code`. These are useful building blocks, but the inspected tools are separate primitives; a documented/tested generator lifecycle contract still needs to establish reliable ordering across source writes, Unity compilation/domain reload, generator invocation, scene save and validation. `execute_code` runs an in-memory method body, so it should not be treated as the persistent source of truth for a scene generator.
+
+**Recommendation — PRIORITIZE workflow integration before adding direct mutation tools:**
+- Keep the generator under a project-owned Editor-only source path (respecting the project's asmdef/conventions) and edit it through the existing structured script editing path where possible. It should expose a clear, explicit entry point—such as a named editor menu item or a dedicated generator-run action—and identify its output scene by path.
+- Define whether the generator owns an entire scene or only an explicitly marked generated root/region. Regeneration must not silently wipe user-owned content outside that boundary.
+- Make regeneration idempotent: stable ordering, explicit random seeds where randomness is intended, stable asset references, predictable names/paths, no reliance on current selection/active scene or unspecified AssetDatabase order, and a documented cleanup/rebuild policy for generated content.
+- Sequence operations explicitly: apply script edit; validate/compile and wait for reload completion; invoke the generator once against the intended Unity instance; save only to the declared output; run targeted post-generation checks; return a compact report. An uncertain response must be reconciled by generator/run ID or result state before re-execution.
+- Prefer a staging output or recoverable save strategy so a failed generator does not overwrite the last known-good scene before checks pass. Use a bounded, project-owned recovery path rather than unbounded backup creation.
+- Make validation script-based and narrow: assert required scene path, expected counts/categories, component/asset references, missing scripts, renderer/material/shader state, required cameras/lights, and other project-specific invariants. Return only failures, warnings, summarized counts and a generation hash/version by default; expose full details only on demand.
+- When a visual or functional failure remains, use screenshots, profiler/render diagnostics, or a small read-only query for the specific suspect—not a full hierarchy dump and not direct per-object corrective mutations. Correct the generator and regenerate.
+- Keep direct `manage_gameobject`, component/property write and prefab-override mutation endpoints for general compatibility/other workflows, but remove them from this agent's default authoring plan and don't add tools that duplicate their direct-mutator semantics.
+
+**Acceptance tests:** create a new test scene through its generator; run the same generator twice and verify stable semantic output/no duplicate objects; edit the generator and verify the scene updates only within its ownership boundary; compile/domain reload wait is correct; bad source gives compile diagnostics without scene modification; generator failure preserves the last known-good scene; wrong project/scene/run ID is rejected; generated references and missing scripts are validated; report is bounded and lists only actionable differences; screenshot/targeted diagnostics can be requested without dumping the scene; response timeout never causes an uncontrolled duplicate regeneration.
+
+**Detailed workflow and tool mapping:** [DETERMINISTIC_SCENE_AUTHORING.md](DETERMINISTIC_SCENE_AUTHORING.md).
 
 ## P2 — Reliability and high-value domain work
 
@@ -361,16 +366,6 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Source:** [Upstream PR #1465](https://github.com/CoplayDev/unity-mcp/pull/1465).
 
-### P2.12 Prefab instance override discovery and scoped apply/revert
-
-**Finding:** upstream PR #1462 proposes listing property and structural prefab instance overrides and applying/reverting only the explicitly selected target/property/component/child. Ambiguous same-name siblings and selections that would widen an array write are rejected.
-
-**Recommendation — TRACK UPSTREAM, do not duplicate now.** This is a high-value workflow for understanding why a scene object doesn't visually follow prefab-asset edits. If not merged, inspect against the current manage_prefabs implementation before adopting; require narrow scope and clear Undo behavior.
-
-**Acceptance tests:** list only non-default overrides; property, added/removed component and added/removed GameObject overrides; revert/apply one property without changing sibling overrides; duplicate-name siblings require stable identity; array selection cannot widen unexpectedly; nested prefab lineage and prefab stage; unsupported Unity internal APIs report capability unavailable; Undo/redo and unsaved-scene dirty state.
-
-**Source:** [Upstream PR #1462](https://github.com/CoplayDev/unity-mcp/pull/1462).
-
 ### P2.13 Configurable server instructions for project conventions
 
 **Finding:** upstream PR #1461 adds a UTF-8 instructions file loaded once at server startup and appends it to the default server instructions.
@@ -448,25 +443,19 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Evidence:** [Execute Code diagnostics review](EXECUTE_CODE_DIAGNOSTICS_REVIEW.md), target [ExecuteCode.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteCode.cs), target [ExecuteCodeTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/Tools/ExecuteCodeTests.cs), upstream [PR #1455](https://github.com/CoplayDev/unity-mcp/pull/1455).
 
-### P2.18 Make GameObject deletion Undo-safe
-
-**Target-source finding:** target GameObjectDelete.cs calls Object.DestroyImmediate and explicitly comments that deletion is not undoable. Its existing EditMode tests cover basic deletion selection/results but the inspected baseline has no Undo round-trip case.
-
-**Upstream proposal:** [PR #1135](https://github.com/CoplayDev/unity-mcp/pull/1135) switches to Undo.DestroyObjectImmediate and adds a handler-level test that deletes one GameObject and restores it with Undo.PerformUndo. This matches Unity's documented API purpose: destroyed objects are recorded so they can be recreated.
-
-**Recommendation — ADAPT after running Unity tests:** replace non-undoable destruction with Undo.DestroyObjectImmediate, then verify through the actual ManageGameObject handler on the supported Unity versions. The repository comment states prior Undo/test-context problems, so source/API docs alone are insufficient evidence that the end-to-end behavior is stable.
-
-- Add multi-target deletion and verify a single Undo restores the full MCP operation. Group explicitly and name the Undo transaction only if tests show automatic grouping is insufficient.
-- Extend the round trip beyond name/existence: verify a child's hierarchy, component value and transform/parent state are restored.
-- Test redo after Undo and ensure failed lookups don't create unrelated Undo records.
-- Keep object IDs in the immediate response as pre-delete identifiers; do not promise the restored object retains the same runtime instance ID.
-- Do not infer that this change makes AssetDatabase/file deletion Undo-safe.
-
-**Acceptance tests:** delete/Undo a single GameObject; multi-object delete/one-step Undo; parent/child and component-state restoration; redo re-deletes; missing target leaves state/Undo untouched; fixture cleanup does not affect later tests; direct EditMode and client-routed operation across supported Unity versions.
-
-**Evidence:** [GameObject deletion and Undo review](GAMEOBJECT_DELETE_UNDO_REVIEW.md), target [GameObjectDelete.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/GameObjects/GameObjectDelete.cs), upstream [PR #1135](https://github.com/CoplayDev/unity-mcp/pull/1135), Unity [Undo.DestroyObjectImmediate](https://docs.unity3d.com/ScriptReference/Undo.DestroyObjectImmediate.html) and [Undo.PerformUndo](https://docs.unity3d.com/ScriptReference/Undo.PerformUndo.html).
-
 ## P3 — Conditional / benchmark-driven enhancements
+
+### Deferred for this agent workflow — direct scene/object mutation features
+
+These are valid general-tool correctness topics, but are **not priorities for the target agent's scene-authoring loop**, because scene contents are authored from a persistent generator script and changes are applied by regenerating from that source.
+
+- **Direct component/SerializedProperty writes:** The1Studio's checked coercion and vector-leaf findings remain valid for clients that directly invoke component/property mutation tools. Do not expand that surface for this agent; keep the details and acceptance tests as a general-user follow-up only. Source context: [ComponentOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/ComponentOps.cs) and the prior P1.4 review history.
+- **Direct prefab-instance override apply/revert:** Listing/applying/reverting individual scene overrides is not a default way to update generated content; change the generator and regenerate instead. Read-only override inspection may be considered later only when it diagnoses a specific mismatch between intended generation and resulting scene. See upstream [PR #1462](https://github.com/CoplayDev/unity-mcp/pull/1462) for historical context.
+- **Undo for direct GameObject deletion:** The target's non-undoable delete behavior is a real general-tool concern, but this agent should not use GameObject deletion as its normal authoring primitive. The detailed review remains available in [GAMEOBJECT_DELETE_UNDO_REVIEW.md](GAMEOBJECT_DELETE_UNDO_REVIEW.md); defer changes unless general API parity is explicitly in scope.
+
+If one of these direct-mutation APIs must be used for a specifically requested migration or non-generator task, validate its safety then. This deferred classification does not require removing existing APIs from Unity-MCP.
+
+
 
 Potential later investigations:
 - Diff two screenshots or scene snapshots and return only important visual changes.
@@ -490,7 +479,7 @@ These are upstream proposals, not features already present in the inspected beta
 | [#1472 custom-tool parameter ordering](https://github.com/CoplayDev/unity-mcp/pull/1472) | P1.1/P1.7 and custom-tool schema reliability | Preserve schema requiredness/defaults and injected-context boundaries for both required-before-optional and optional-before-required definitions. |
 | [#1455 C# type aliases and diagnostics](https://github.com/CoplayDev/unity-mcp/pull/1455) | Code execution and compile diagnostics | Keep generated-wrapper line offsets synchronized and test CodeDom, Roslyn, fallback and runtime-error paths. |
 | [#1448 Console filtering](https://github.com/CoplayDev/unity-mcp/pull/1448) | P2.1/P2.16 observability and result signal | Exclude MCP-prefixed logs only when requested; keep them by default and preserve pagination/count behavior. Prefix classification is heuristic. |
-| [#1135 Undo-safe GameObject deletion](https://github.com/CoplayDev/unity-mcp/pull/1135) | Scene/GameObject mutation correctness | Verify delete-then-Undo behavior across supported Unity versions; do not assume a single Editor test proves a cross-version guarantee. |
+| [#1135 Undo-safe GameObject deletion](https://github.com/CoplayDev/unity-mcp/pull/1135) | General MCP tool parity only, deferred for this agent workflow | Direct delete/Undo should not be part of this agent's generator-based scene-edit loop; retain the review only for broader tool correctness. |
 | [#1450 fixed Game View resolution](https://github.com/CoplayDev/unity-mcp/pull/1450) | P3 visual iteration | Lower priority; requires reflected API compatibility, visible-window/readback handling, clamping disclosure and clarity that EditorPrefs preset state is shared and not restored. |
 | [#1464 exact optional package versions](https://github.com/CoplayDev/unity-mcp/pull/1464) | Secondary Unity Editor workflow | Preserve installed/Git/local dependencies unless the user explicitly changes them; distinguish package release version from native API capability. |
 
@@ -516,13 +505,14 @@ Detailed evidence and limitations: [RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md](REC
 - Tool result bytes/tokens, truncation rate, continuation count and failure rate.
 - Latency p50/p95, Editor pump freshness, uncertain mutation outcomes and repeated side effects.
 - Domain reload/compile count/time for representative batch workflows.
-- End-to-end task success for scene creation, script edit/compile, EditMode tests, missing-reference diagnosis, material edits and two-frame visual iteration.
+- End-to-end task success for script-authored scene generation and repeated regeneration, script edit/compile/reload, targeted assertion coverage, EditMode tests, missing-reference diagnosis, material/shader verification and visual iteration—without full-scene reads or one-off direct GameObject/component mutations.
 - Unity-version and MCP-client compatibility matrix; report skipped tests separately from passing tests.
 
 ## Explicit non-goals
 
 - Rewrite the system in another language or replace the current Python/C# split.
 - Rebuild Undo/Redo, screenshots, pagination, async jobs, readiness, multi-instance routing or tool groups without verifying the existing implementation is insufficient.
+- Treat direct GameObject/component CRUD, SerializedProperty edits or prefab-override apply/revert as the default scene-authoring path for this agent; use the generator source and deterministic regeneration instead.
 - Add tools just to maximize catalog size.
 - Advertise concurrent Unity API operations that must run on the main thread.
 - Auto-delete assets based on heuristic “unused” results.

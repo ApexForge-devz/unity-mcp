@@ -79,10 +79,14 @@ Previous source audit identified the following as already present in some form; 
 - Scene/editor state and readiness snapshots.
 - Multi-instance routing.
 - Tool grouping / activation.
-- C# script creation and structured editing/validation.
+- C# script creation, structured editing and script validation; plus scene lifecycle, screenshots and read-only profiling/diagnostic primitives.
 - Authentication and remote-server building blocks.
 
 Confirm each item against its current handler/tests before making a fine-grained claim that it is complete. The architectural rule is: improve contracts and gaps before adding duplicate subsystems.
+
+### Agent-specific scene-authoring constraint (2026-10-14)
+
+The agent's scene authoring is script-first: a persistent generator/regeneration script owns intended scene state. Modify that source, compile/reload, run the named generator and perform targeted assertions; do not treat direct GameObject/component CRUD, direct property writes, or individual prefab-override mutations as the normal workflow. Those APIs remain for other clients and may be inspected for general tool correctness, but are not active priorities for this agent. See [DETERMINISTIC_SCENE_AUTHORING.md](DETERMINISTIC_SCENE_AUTHORING.md).
 
 ## 5. Not yet verified experimentally
 

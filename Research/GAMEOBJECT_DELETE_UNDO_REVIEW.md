@@ -4,7 +4,7 @@
 **Target:** ApexForge-devz/unity-mcp, beta, commit 142ea0af4890337f0ff6658df61db23982313717  
 **Upstream proposal:** [CoplayDev/unity-mcp PR #1135](https://github.com/CoplayDev/unity-mcp/pull/1135)  
 **Observed PR state:** open, last updated 2026-07-04 in this snapshot.  
-**Decision:** ADAPT the Undo-based deletion and regression test; expand validation for multi-object operations and state restoration.  
+**Decision updated 2026-10-14:** DEFER for the target agent's script-first scene-authoring workflow; retain as a general MCP tool-parity finding only. If general direct-mutation quality is being improved, adapt the Undo-based deletion and expand validation for multi-object operations and state restoration.  
 **Validation:** source/patch review only; Unity tests were not run in this session.
 
 ## 1. Executive conclusion
@@ -13,7 +13,7 @@ The current target deletes resolved GameObjects through Object.DestroyImmediate 
 
 Upstream PR #1135 changes the single call to Undo.DestroyObjectImmediate and adds an EditMode round-trip test: create an object, delete it through the MCP handler, verify it is gone, call Undo.PerformUndo and verify the object returns. This aligns with Unity's API contract: Undo.DestroyObjectImmediate destroys an object while recording the operation so it can be recreated; Undo.PerformUndo performs an Undo operation equivalent to the Edit → Undo command.
 
-The patch is small and appropriate. It should be adopted after confirming the round-trip test passes in the project's supported Unity test matrix. The one-object test does not establish that multi-target deletion is grouped into one sensible Undo action, or that hierarchy, components, prefab-instance state and redo behavior are restored consistently.
+The patch is small and appropriate for clients who intentionally use the direct GameObject-delete tool. However, this agent's normal scene-authoring path is a persistent generator script followed by regeneration; it should not create/delete individual GameObjects through CRUD calls to author scenes. As a result, the change is no longer a priority for this agent workflow. The one-object test still does not establish that multi-target deletion is grouped into one sensible Undo action, or that hierarchy, components, prefab-instance state and redo behavior are restored consistently.
 
 ## 2. Target source verified
 
@@ -91,7 +91,7 @@ A static source check or passing unit test in one Editor version is not proof ac
 
 ## 7. Recommended decision
 
-**ADAPT / high-confidence candidate:** change deletion to Undo.DestroyObjectImmediate and merge only after the regression test runs successfully in Unity. Keep the patch narrow. Add multi-object grouping, hierarchy/component restoration and redo cases before asserting the operation is fully Undo-safe. At minimum, the one-object round-trip should pass on the supported Unity 2022+ and Unity 6 configurations.
+**Deferred for this agent workflow:** do not prioritize this patch as a scene-authoring feature. Preserve the review for broader MCP API quality or explicitly requested workflows where a client directly deletes GameObjects. If adopted for general tool parity, keep the same runtime test gate and add multi-object grouping, hierarchy/component restoration and redo cases.
 
 ## Acceptance matrix
 
