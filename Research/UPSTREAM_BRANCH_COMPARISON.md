@@ -215,3 +215,10 @@ The deeper review is recorded in [ARGUMENT_NORMALIZATION_REVIEW.md](ARGUMENT_NOR
 The detailed comparison is now in [ASSET_SEARCH_PAGINATION_REVIEW.md](ASSET_SEARCH_PAGINATION_REVIEW.md). Target SearchAssets hydrates every match with GetAssetData, then applies Skip/Take; invalid folder scopes silently become null/global scope. PR #1459 moves asset hydration into the requested index window, rejects invalid scopes, validates page values and adds EditMode assertions that off-page assets remain unloaded.
 
 The optimization is meaningful but bounded: FindAssets still materializes the full GUID array and the loop remains O(N) when computing exact total count and applying date filters. The accurate adoption claim is page-bounded asset-load/preview work, not fully bounded or constant-time search. Benchmark on large projects before claiming speedup; re-check open PR state before implementing.
+
+
+## 12. PR #1455 — Execute Code type aliases and diagnostic quality
+
+The source comparison is documented in [EXECUTE_CODE_DIAGNOSTICS_REVIEW.md](EXECUTE_CODE_DIAGNOSTICS_REVIEW.md). The target wrapper imports both System and UnityEngine; this creates bare Object/Random ambiguity. It also uses a fixed WrapperLineOffset to adjust CodeDom and Roslyn compile errors. PR #1455 adds the UnityEngine aliases, updates the offset by two and introduces a known-line regression test.
+
+A caveat emerged during patch review: the new CodeDom C#-version hint is added to any CodeDom compile failure, not only modern-syntax failures. The tests cover a switch-expression failure but not a normal semantic/type error. Recommendation is to adapt aliases and tests while making the hint advisory or classify diagnostics, preserving the compiler actually used, and keeping compile diagnostics distinct from runtime stack traces.

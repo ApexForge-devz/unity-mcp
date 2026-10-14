@@ -526,3 +526,19 @@ Verified target SearchAssets uses AssetDatabase.FindAssets for the full match ar
 The upstream patch moves GetAssetData into the page window, rejects blank/non-folder scopes instead of global fallback, validates positive pageSize/pageNumber and uses a long offset product. Proposed Unity EditMode tests assert that off-page assets remain unloaded, that last/beyond-end/date-filtered pages have correct loaded counts and that bad scopes/paging do not load assets. The patch was open in metadata checked on 2026-10-14; tests were not run.
 
 Correctness of the performance claim matters: the patch still materializes all AssetDatabase.FindAssets GUIDs and iterates every candidate to compute exact total count and apply date filtering. It reduces the expensive per-asset hydration and preview work to at most pageSize rows, but does not eliminate O(N) scan cost or the GUID array. P1.10 now states that limited claim and requires large-project timing/allocation/preview measurements before asserting a speedup. No runtime code or tests were changed/run.
+
+
+## Continued source review — Execute Code wrapper and compiler diagnostics (2026-10-14)
+
+Added [EXECUTE_CODE_DIAGNOSTICS_REVIEW.md](EXECUTE_CODE_DIAGNOSTICS_REVIEW.md), comparing target ExecuteCode.cs and ExecuteCodeTests.cs with the source-level patch for upstream PR #1455.
+
+Target source facts:
+- ExecuteCode.cs blob **10325861e52def46cc72fe7cb2d5d4e28ffbb828** imports both System and UnityEngine, creating ambiguity for unqualified Object and Random.
+- The baseline wrapper emits ten lines before user source and WrapperLineOffset is 10. CodeDom subtracts that offset from one-based CompilerError.Line; Roslyn adds one to its zero-based source line and subtracts the same offset. The offset is therefore a correctness contract shared by the wrapper and both compiler paths.
+- Target ExecuteCodeTests.cs blob **dc3c4e360afe9c3273c5c39a1a8ff7d716c88464** contains basic CodeDom/backend tests but the reviewed baseline does not assert alias resolution or a known snippet line.
+
+PR #1455 adds aliases for UnityEngine.Object/Random, increases WrapperLineOffset to 12, adds tests covering alias/explicit System.Random and user line 3, and adds a CodeDom hint suggesting Roslyn or older syntax.
+
+New review caveat: the PR adds this hint to every failed CodeDom compile, including ordinary semantic/type/reference errors unrelated to language-version support. The proposed test only verifies a switch-expression failure. Recommendation is to keep the aliases and line-mapping tests, but make compiler hints explicitly conditional or classify diagnostic IDs. Also keep runtime exception stack traces separate from compile-line normalization. The current auto route uses Roslyn when available and doesn't fall back to CodeDom after a Roslyn compilation error.
+
+No source code or tests were changed/run.

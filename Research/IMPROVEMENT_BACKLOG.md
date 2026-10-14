@@ -430,6 +430,24 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Evidence:** [onlyfeng test-cache review](FORK_ONLYFENG_TEST_STATUS_CACHE.md), [run_tests.py](https://github.com/onlyfeng/unity-mcp/blob/beta/Server/src/services/tools/run_tests.py), [test_run_tests_async.py](https://github.com/onlyfeng/unity-mcp/blob/beta/Server/tests/integration/test_run_tests_async.py).
 
+### P2.17 Keep Execute Code diagnostics aligned with user snippets
+
+**Target-source finding:** ExecuteCode.cs generates a wrapper that imports System and UnityEngine, so unqualified Object and Random conflict. The target uses a fixed WrapperLineOffset constant in both CodeDom and Roslyn diagnostic conversion paths. In the current wrapper, user code starts after ten generated lines and the offset is 10; adding two aliases means the offset must become 12. Existing target tests do not cover these aliases or assert a known compiler-error line across backend paths.
+
+**Upstream proposal:** [PR #1455](https://github.com/CoplayDev/unity-mcp/pull/1455) adds UnityEngine.Object/Random aliases, updates the offset, adds regression tests, and appends Roslyn/older-syntax guidance when CodeDom compilation fails.
+
+**Recommendation — ADAPT with a diagnostic-specific caveat:**
+- Add the aliases and document the convention; preserve lowercase object and explicit System.Random.
+- Keep the wrapper offset and emitted source tied together. Retain tests on a known user line under CodeDom and auto; consider computing the offset from the single shared wrapper prelude rather than duplicating its line count.
+- Review the CodeDom hints: the patch appends a C# language-version hint to every CodeDom compile failure, including ordinary type/reference errors. Phrase the hint as conditional advice or classify diagnostic IDs before identifying unsupported syntax.
+- Preserve the actual backend in structured result metadata. Auto uses Roslyn when available and reports Roslyn errors directly; it does not retry CodeDom after a Roslyn compilation error.
+- Do not imply that compile-line normalization also fixes runtime exception stack traces; they are separate output paths.
+- Keep the existing arbitrary-code safety/authorization policy untouched; this is a developer-usability change, not a security boundary.
+
+**Acceptance tests:** bare Object/Random under CodeDom and auto; lowercase object/System.Random remain valid; compile error on a known user line; wrapper addition causes an offset test failure until updated; modern syntax failure gets advisory CodeDom/Roslyn guidance; ordinary type mismatch and missing references are not confidently misattributed to language version; compiler field matches the backend actually used; runtime error stack traces remain distinguishable.
+
+**Evidence:** [Execute Code diagnostics review](EXECUTE_CODE_DIAGNOSTICS_REVIEW.md), target [ExecuteCode.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteCode.cs), target [ExecuteCodeTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/Tools/ExecuteCodeTests.cs), upstream [PR #1455](https://github.com/CoplayDev/unity-mcp/pull/1455).
+
 ## P3 — Conditional / benchmark-driven enhancements
 
 Potential later investigations:

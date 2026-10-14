@@ -109,3 +109,14 @@ Added [ASSET_SEARCH_PAGINATION_REVIEW.md](ASSET_SEARCH_PAGINATION_REVIEW.md) aft
 Confirmed baseline behavior: each match is passed to GetAssetData before Skip/Take, so it loads every result and can create PNG/Base64 previews for off-page assets. An invalid folder path is set to null scope and then searches across the project. PR #1459 calls GetAssetData only for page rows, rejects blank/invalid scope, validates positive page values, uses long offset math and adds tests checking actual loaded asset state across normal, last, beyond-end and date-filtered pages.
 
 Caveat: the PR still holds the FindAssets GUID array and loops all candidates to compute total count/apply the date filter. Its improvement is O(pageSize) hydration/preview work, while candidate discovery/count remains O(N). Treat the patch as a high-value optimization, but require large-project measurements before claiming latency/peak-memory gains. The PR remained open in the 2026-10-14 metadata snapshot; recheck before implementing so we do not duplicate landed work.
+
+
+## Deep source review — PR #1455 Execute Code diagnostics
+
+Added [EXECUTE_CODE_DIAGNOSTICS_REVIEW.md](EXECUTE_CODE_DIAGNOSTICS_REVIEW.md) after checking target ExecuteCode.cs, compile-diagnostic offset conversion, existing ExecuteCodeTests, and the upstream patch.
+
+The good changes are the UnityEngine Object/Random aliases and changing WrapperLineOffset from 10 to 12 after adding two wrapper lines; the patch adds tests for alias compatibility and an error reported on user line 3 across CodeDom/auto.
+
+Caveat: the proposed CodeDom syntax hint is appended to every CodeDom compilation failure, not only diagnostics indicating a C# language-version problem. Ordinary type errors, missing types and reference errors may receive a misleading hint. Recommend advisory wording (“if the code uses C# 8+ syntax…”) or diagnostic-ID classification; the current returned CodeDom messages discard error IDs. Runtime exception stack traces are not normalized by the compiler-error offset.
+
+Adoption: **ADAPT** aliases and tests, with the hint wording/classification tightened. Test changes in the upstream patch were not run in this research session.
