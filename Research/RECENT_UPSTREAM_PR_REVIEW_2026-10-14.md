@@ -120,3 +120,12 @@ The good changes are the UnityEngine Object/Random aliases and changing WrapperL
 Caveat: the proposed CodeDom syntax hint is appended to every CodeDom compilation failure, not only diagnostics indicating a C# language-version problem. Ordinary type errors, missing types and reference errors may receive a misleading hint. Recommend advisory wording (“if the code uses C# 8+ syntax…”) or diagnostic-ID classification; the current returned CodeDom messages discard error IDs. Runtime exception stack traces are not normalized by the compiler-error offset.
 
 Adoption: **ADAPT** aliases and tests, with the hint wording/classification tightened. Test changes in the upstream patch were not run in this research session.
+
+
+## Deeper source review — PR #1135 Undo-safe GameObject deletion
+
+Added [GAMEOBJECT_DELETE_UNDO_REVIEW.md](GAMEOBJECT_DELETE_UNDO_REVIEW.md) after comparing target GameObjectDelete.cs, baseline EditMode deletion tests and the upstream patch with Unity's current Undo API documentation.
+
+The target currently calls Object.DestroyImmediate and comments that this makes deletion non-undoable. PR #1135 replaces it with Undo.DestroyObjectImmediate and tests a handler-level delete → Undo.PerformUndo → restored-object round trip. Unity's current API docs explicitly state that Undo.DestroyObjectImmediate records a destroy operation so an object can be recreated.
+
+Adoption judgment: **ADAPT** the narrow change after running tests. The proposal covers one root object; require additional tests for multi-object grouping, hierarchy/component state restoration, redo, cleanup isolation and supported Unity versions before describing the entire operation as fully Undo-safe. The PR remained open in this snapshot and no Unity tests were run here.

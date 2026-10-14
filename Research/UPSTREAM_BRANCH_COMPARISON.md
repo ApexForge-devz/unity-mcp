@@ -222,3 +222,10 @@ The optimization is meaningful but bounded: FindAssets still materializes the fu
 The source comparison is documented in [EXECUTE_CODE_DIAGNOSTICS_REVIEW.md](EXECUTE_CODE_DIAGNOSTICS_REVIEW.md). The target wrapper imports both System and UnityEngine; this creates bare Object/Random ambiguity. It also uses a fixed WrapperLineOffset to adjust CodeDom and Roslyn compile errors. PR #1455 adds the UnityEngine aliases, updates the offset by two and introduces a known-line regression test.
 
 A caveat emerged during patch review: the new CodeDom C#-version hint is added to any CodeDom compile failure, not only modern-syntax failures. The tests cover a switch-expression failure but not a normal semantic/type error. Recommendation is to adapt aliases and tests while making the hint advisory or classify diagnostics, preserving the compiler actually used, and keeping compile diagnostics distinct from runtime stack traces.
+
+
+## 13. PR #1135 — Undo-safe GameObject deletion
+
+See [GAMEOBJECT_DELETE_UNDO_REVIEW.md](GAMEOBJECT_DELETE_UNDO_REVIEW.md). Target GameObjectDelete.cs explicitly uses Object.DestroyImmediate and notes that delete is not undoable. PR #1135 changes to Undo.DestroyObjectImmediate and adds a single-object round trip. Unity's current docs confirm this API is intended to record destroyed objects for recreation.
+
+**Decision:** adapt after running the handler-level test. Additional coverage should verify multi-object single-step Undo, hierarchy/component restoration, redo, test cleanup and all supported Unity versions. Do not extrapolate this to file/asset deletion.

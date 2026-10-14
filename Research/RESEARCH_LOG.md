@@ -542,3 +542,14 @@ PR #1455 adds aliases for UnityEngine.Object/Random, increases WrapperLineOffset
 New review caveat: the PR adds this hint to every failed CodeDom compile, including ordinary semantic/type/reference errors unrelated to language-version support. The proposed test only verifies a switch-expression failure. Recommendation is to keep the aliases and line-mapping tests, but make compiler hints explicitly conditional or classify diagnostic IDs. Also keep runtime exception stack traces separate from compile-line normalization. The current auto route uses Roslyn when available and doesn't fall back to CodeDom after a Roslyn compilation error.
 
 No source code or tests were changed/run.
+
+
+## Continued source review — Undo-safe GameObject deletion (2026-10-14)
+
+Added [GAMEOBJECT_DELETE_UNDO_REVIEW.md](GAMEOBJECT_DELETE_UNDO_REVIEW.md) after checking target GameObjectDelete.cs, current ManageGameObjectDeleteTests.cs, upstream PR #1135 and official Unity Undo documentation.
+
+Target GameObjectDelete.cs, blob **74382ef499f4f5bb31b6caf8124c6db40c2162e5**, calls Object.DestroyImmediate and explicitly documents that deletion is not undoable. The existing deletion test file, blob **f3afc7d35df56b574cc1a84f025d3f103efe5388**, covers regular target selection/deletion but no Undo round trip in the inspected baseline.
+
+Upstream PR #1135 replaces the call with Undo.DestroyObjectImmediate and adds a test: create a GameObject, delete through ManageGameObject.HandleCommand, assert absence, invoke Undo.PerformUndo and assert restoration. Official Unity docs for [Undo.DestroyObjectImmediate](https://docs.unity3d.com/ScriptReference/Undo.DestroyObjectImmediate.html) state that it records the deletion so the object can be recreated; [Undo.PerformUndo](https://docs.unity3d.com/ScriptReference/Undo.PerformUndo.html) performs the Editor Undo operation.
+
+The patch is a strong targeted candidate, but the single-object test does not establish multi-target grouping, full hierarchy/component restoration, redo behavior or version-matrix reliability. The backlog P2.18 now requests these cases and distinguishes scene object Undo from asset/file deletion. This review did not run the Unity tests or change runtime code.

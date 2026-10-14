@@ -448,6 +448,24 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Evidence:** [Execute Code diagnostics review](EXECUTE_CODE_DIAGNOSTICS_REVIEW.md), target [ExecuteCode.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteCode.cs), target [ExecuteCodeTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/Tools/ExecuteCodeTests.cs), upstream [PR #1455](https://github.com/CoplayDev/unity-mcp/pull/1455).
 
+### P2.18 Make GameObject deletion Undo-safe
+
+**Target-source finding:** target GameObjectDelete.cs calls Object.DestroyImmediate and explicitly comments that deletion is not undoable. Its existing EditMode tests cover basic deletion selection/results but the inspected baseline has no Undo round-trip case.
+
+**Upstream proposal:** [PR #1135](https://github.com/CoplayDev/unity-mcp/pull/1135) switches to Undo.DestroyObjectImmediate and adds a handler-level test that deletes one GameObject and restores it with Undo.PerformUndo. This matches Unity's documented API purpose: destroyed objects are recorded so they can be recreated.
+
+**Recommendation — ADAPT after running Unity tests:** replace non-undoable destruction with Undo.DestroyObjectImmediate, then verify through the actual ManageGameObject handler on the supported Unity versions. The repository comment states prior Undo/test-context problems, so source/API docs alone are insufficient evidence that the end-to-end behavior is stable.
+
+- Add multi-target deletion and verify a single Undo restores the full MCP operation. Group explicitly and name the Undo transaction only if tests show automatic grouping is insufficient.
+- Extend the round trip beyond name/existence: verify a child's hierarchy, component value and transform/parent state are restored.
+- Test redo after Undo and ensure failed lookups don't create unrelated Undo records.
+- Keep object IDs in the immediate response as pre-delete identifiers; do not promise the restored object retains the same runtime instance ID.
+- Do not infer that this change makes AssetDatabase/file deletion Undo-safe.
+
+**Acceptance tests:** delete/Undo a single GameObject; multi-object delete/one-step Undo; parent/child and component-state restoration; redo re-deletes; missing target leaves state/Undo untouched; fixture cleanup does not affect later tests; direct EditMode and client-routed operation across supported Unity versions.
+
+**Evidence:** [GameObject deletion and Undo review](GAMEOBJECT_DELETE_UNDO_REVIEW.md), target [GameObjectDelete.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/GameObjects/GameObjectDelete.cs), upstream [PR #1135](https://github.com/CoplayDev/unity-mcp/pull/1135), Unity [Undo.DestroyObjectImmediate](https://docs.unity3d.com/ScriptReference/Undo.DestroyObjectImmediate.html) and [Undo.PerformUndo](https://docs.unity3d.com/ScriptReference/Undo.PerformUndo.html).
+
 ## P3 — Conditional / benchmark-driven enhancements
 
 Potential later investigations:
