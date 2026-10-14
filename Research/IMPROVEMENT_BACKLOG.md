@@ -320,6 +320,12 @@ See §3.6–§3.7 in the detailed review. These are source-review findings; no U
 
 
 **Sources:** target [MemorySnapshotOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/Profiler/Operations/MemorySnapshotOps.cs); candidate [SnapshotQueryEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/SnapshotQueryEngine.cs), [SnapshotDiffEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/SnapshotDiffEngine.cs), [MemoryProfilerExportEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/MemoryProfilerExportEngine.cs); Unity [TakeSnapshot documentation](https://docs.unity.com/en-us/engine/6000.5/script-reference/unity/profiling/memory/memoryprofiler/takesnapshot).
+### P2.18 Read-only built AssetBundle inventory
+
+**Upstream PR #1466:** [UPSTREAM_PR_1466_ASSETBUNDLE_EXPLORER_REVIEW.md](UPSTREAM_PR_1466_ASSETBUNDLE_EXPLORER_REVIEW.md) reviews a compact addition to the existing manage_asset family: list subdirectories/bundle-header files and inspect asset/scene names in a selected built bundle without importing assets, loading bundle assets, or opening scenes. It has canonical project-root containment, symlink/reparse-point rejection, short-header sniffing, page limits (1–200), bundle-handle cleanup and focused Unity/Python/CLI tests in the candidate branch.
+
+**Decision — ADAPT conditionally (P2):** useful if the target game/pipeline actually produces AssetBundles; otherwise optional. This is different from AssetDatabase search because it inspects built output files. One limit is explicit: page size bounds returned rows but not the directory scan, sorting or temporary list allocation, which scale with every entry in the selected directory. Benchmark a realistic build folder and add a scan budget/async path only if the workload warrants it. Do not load/import assets just to inspect names and do not open scenes.
+
 ### P2.5 Release/version/source alignment
 
 **Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.
