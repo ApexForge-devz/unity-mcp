@@ -29,7 +29,7 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 ### P0.2 Policy for arbitrary C# execution
 
-**Finding:** ExecuteCode.cs compiles and executes supplied C# in the Unity Editor process. safety_checks defaults true but is caller-controlled; blocked-pattern inspection is not a sandbox.
+**Finding:** ExecuteCode.cs compiles and executes supplied C# in the Unity Editor process. safety_checks defaults true but is caller-controlled; blocked-pattern inspection is not a sandbox. Existing ExecuteCodeTests.cs already checks file-delete/process-start/infinite-loop blocklist cases and explicitly verifies that setting safety_checks=false bypasses that blocklist.
 
 **Context:** Upstream issue [#1438](https://github.com/CoplayDev/unity-mcp/issues/1438) is an open request for a project-path allowlist for selected destructive file operations. Consider that path-level UX, but it does not replace an authorization/trust-boundary policy for arbitrary C#.
 
@@ -39,13 +39,13 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 - For remote and unattended use, disable by default or require explicit administrator-controlled enablement.
 - Emit auditable decisions and clear denial diagnostics. Do not present pattern matching as a security boundary.
 
-**Acceptance tests:** unauthorized remote call denied before dispatch; setting safety_checks=false cannot bypass server policy; aliases and batch paths enforce the same policy; trusted-local mode behaves as configured; policy is stable across session changes and domain reload.
+**Acceptance tests:** unauthorized remote call denied before dispatch; setting safety_checks=false cannot bypass server policy; aliases and batch paths enforce the same policy; trusted-local mode behaves as configured; policy is stable across session changes and domain reload. These are policy tests on top of existing ExecuteCodeTests.cs blocklist coverage, not replacements for it.
 
 **Evidence:** [ExecuteCode.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteCode.cs), design comparison [Pushkar-Env](https://github.com/pushkar-env/unity-mcp).
 
 ### P0.3 ZIP expansion/resource limits
 
-**Finding:** SafeZipExtractor.cs already resolves entry paths to prevent Zip-Slip and filters extensions through an allowlist. The inspected implementation iterates archive entries and copies entry streams, but caps on entry count or expanded byte totals were not evident.
+**Finding:** SafeZipExtractor.cs already resolves entry paths to prevent Zip-Slip and filters extensions through an allowlist. Existing SafeZipExtractorTests.cs verifies normal extraction, disallowed extensions, and traversal rejection. The inspected implementation iterates archive entries and copies entry streams, but caps on entry count or expanded byte totals were not evident; the existing tests do not cover expansion quotas.
 
 **Recommendation — ADAPT:**
 - Keep path-containment and extension-allowlist defenses.
@@ -53,7 +53,7 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 - Enforce expanded-byte caps while streaming, not merely by trusting ZIP directory metadata.
 - Fail with sanitized errors and clean up partial output according to an explicit import policy.
 
-**Acceptance tests:** traversal, absolute path, both slash styles, duplicate/case-colliding paths, many tiny entries, one oversized entry, total oversized archive, malformed ZIP, denied extension, partial-failure cleanup, pre-existing-file conflict, and safe nested directories.
+**Acceptance tests:** keep existing traversal/extension/normal-entry cases and add absolute path, both slash styles, duplicate/case-colliding paths, many tiny entries, one oversized entry, total oversized archive, malformed ZIP, partial-failure cleanup, pre-existing-file conflict, and safe nested directories.
 
 **Evidence:** [SafeZipExtractor.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/AssetGen/Import/SafeZipExtractor.cs). Target beta and upstream main have the same inspected blob at this snapshot; this limitation is not resolved merely by moving to upstream main. See [UPSTREAM_BRANCH_COMPARISON.md](UPSTREAM_BRANCH_COMPARISON.md).
 
