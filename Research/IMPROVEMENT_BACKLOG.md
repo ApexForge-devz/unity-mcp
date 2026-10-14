@@ -326,6 +326,12 @@ See §3.6–§3.7 in the detailed review. These are source-review findings; no U
 
 **Decision — ADAPT conditionally (P2):** useful if the target game/pipeline actually produces AssetBundles; otherwise optional. This is different from AssetDatabase search because it inspects built output files. One limit is explicit: page size bounds returned rows but not the directory scan, sorting or temporary list allocation, which scale with every entry in the selected directory. Benchmark a realistic build folder and add a scan budget/async path only if the workload warrants it. Do not load/import assets just to inspect names and do not open scenes.
 
+### P2.19 Actionable recovery guidance when a Unity session is unavailable
+
+**Upstream PR #1470:** [UPSTREAM_PR_1470_NO_SESSION_RECOVERY_REVIEW.md](UPSTREAM_PR_1470_NO_SESSION_RECOVERY_REVIEW.md) reviews a small, in-scope improvement to PluginHub's existing no_unity_session response. It fills the human-readable message while preserving the existing error, hint=retry, data.reason and retry_after_ms fields; stale_connection remains unchanged.
+
+**Decision — ADAPT (P2 / low cost):** guidance can reduce blind retry loops after the existing bounded session-reconnect wait. Explicitly direct the agent to read mcpforunity://instances and verify the requested project/instance identity, since starting an arbitrary Unity Editor does not fix a request routed to the wrong instance. Add focused tests for no_unity_session vs stale_connection and the unchanged machine-readable contract. This is response guidance, not a fix for stalled compilation, background Editor throttling or transport routing.
+ 
 ### P2.5 Release/version/source alignment
 
 **Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.
