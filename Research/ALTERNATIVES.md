@@ -141,3 +141,33 @@ The strongest recurring patterns are not tool-count expansion:
 6. **Treat package/CI maintenance as features:** version contracts, reproducible packaging, upstream sync and generated-document parity, while avoiding unnecessary scheduled builds.
 
 See [Improvement Backlog](IMPROVEMENT_BACKLOG.md) for prioritized actions and acceptance criteria.
+
+
+## 8. Specialist source review: memory profiling and asset dependency graph
+
+### Sabri Boughanmi / Ivan Murzak Memory Profiler extension
+
+Repository: [sabriboughanmi/Unity-MCP-MemoryProfiler](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler)
+
+Unlike README-only candidates, source reviewed includes Tool_MemoryProfiler.cs, SnapshotQueryEngine.cs and SnapshotDiffEngine.cs. This package supports incremental snapshot opening with operation status/cancellation, a bounded maximum of two sessions, summary/metadata, sorted and paginated queries (default 50, maximum 500), snapshot diffs, object details, references and paths-to-roots. Its tree contains multiple EditMode suites around bridge behavior, query/diff engines and lifecycle; tests were not run during this review. It is MIT-licensed with an existing copyright notice for Ivan Murzak, which must be preserved if source is reused.
+
+**Usefulness:** The target's current MemorySnapshotOps captures .snap files, lists them and compares file-level metadata; its own response notes object-level comparison must be performed in the Memory Profiler UI. Queryable snapshot analysis is therefore a meaningful optional capability gap, not just an alternate implementation of existing snapshot capture.
+
+**Caution:** It depends on Unity Memory Profiler editor APIs/package and has its own integration framework. Port the domain pattern selectively and check compatibility against the target's Unity versions/package conventions.
+
+### Ozan Kasikci asset dependency graph: evidence and limitations
+
+Repository: [ozankasikci/unity-editor-mcp](https://github.com/ozankasikci/unity-editor-mcp)
+
+Source-reviewed Unity handler: [AssetDependencyHandler.cs](https://github.com/ozankasikci/unity-editor-mcp/blob/main/unity-editor-mcp/Editor/Handlers/AssetDependencyHandler.cs), blob 439239aec5f2562eb0866fd84fd5e3dafa2e668e.
+
+It wires Unity AssetDatabase calls for direct/recursive dependencies, reverse dependents, size analysis, script circular-analysis and unused-asset candidates. This validates that the action family can be implemented in Unity, not just declared in the Node handler. The implementation should **not** be copied without revisions:
+- recursive depth is simplified to 1 or 2, not a true graph depth;
+- cycle detection is explicitly simplified and focuses on scripts;
+- reverse dependency detection scans discovered assets and calls GetDependencies per asset, which can become expensive;
+- “unused” is computed from serialized AssetDatabase dependency edges, so code-string loads, Resources paths, Addressables and external runtime/content workflows may cause false positives;
+- the unit tests inspected at the MCP server layer use a mock Unity connection, so they do not establish correct AssetDatabase graph semantics.
+
+**Usefulness:** Reuse the action vocabulary as a starting point, but implement conservative semantics and prove them against Unity EditMode fixtures; never automatically delete returned “unused” candidates.
+
+Further source details and acceptance-test recommendations are in [Specialist Workflow Source Review](SPECIALIST_WORKFLOWS.md).
