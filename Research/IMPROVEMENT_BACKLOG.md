@@ -134,6 +134,22 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Acceptance tests:** reproduce the same six-tool/operation discovery benchmark on current beta; test schema parity for all action tools; exact/ambiguous/unknown operation names; output budgets for hierarchy/assets/logs/images; TTL/eviction/durable restart; concurrent requests with the same idempotency key; different arguments under the same key are rejected; result handles cannot cross project/principal boundaries; large raw output is capped before unbounded materialization where feasible.
 
+
+
+### P1.6 Project-scoped endpoint/ownership and safe client configuration
+
+**Finding:** upstream PR #1285 identifies cross-project contamination from machine-global EditorPrefs for local endpoint, transport selection and server PID/port/instance token. Upstream PR #1468 identifies automatic configuration rewrites that can replace user-managed stdio executables and remove env/cwd fields. PRs #1194 and #1465 add launch-directory-based project selection and safe asynchronous refresh, respectively. These are connected operational risks but distinct subsystems.
+
+**Recommendation — VERIFY / ADAPT only where the current target lacks the protections:**
+- Compare project identity/prefs implementation and connection manager against PR #1285 before making a second scoping framework.
+- Treat generated client config as user-owned state. Preserve custom commands/env/cwd/unrelated fields by default; make destructive “regenerate” an explicit operation.
+- When several Unity Editors are open, use explicit project/launch-directory identity where the client exposes it; fail closed if matching is ambiguous.
+- Keep filesystem/process/network work off the Editor main thread with coalescing/cache and stale-result protection, while all Unity UI work remains on the main thread.
+
+**Acceptance tests:** two projects with different HTTP endpoints/PIDs; two linked Git worktrees with identical project names; process restart/domain reload; config custom launcher/env/cwd preserved through checks/migration; malformed JSON and args shape do not trigger rewrite; worker completion after settings change/window close cannot update stale UI; ambiguous roots prompt rather than selecting randomly; per-principal/project/session cache isolation.
+
+**Sources:** [PR #1285 project-scoped ownership](https://github.com/CoplayDev/unity-mcp/pull/1285), [PR #1468 preserve manual stdio config](https://github.com/CoplayDev/unity-mcp/pull/1468), [PR #1194 launch-dir auto-selection](https://github.com/CoplayDev/unity-mcp/pull/1194), [PR #1465 async focus refresh](https://github.com/CoplayDev/unity-mcp/pull/1465).
+
 ## P2 — Reliability and high-value domain work
 
 ### P2.1 Editor main-thread liveness and retry safety
@@ -237,6 +253,63 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 - Verify release packaging includes only intended content and preserves asset licenses/provenance.
 
 **Acceptance tests:** reproducible release metadata, locked dependency install, declared Unity/server compatibility matrix, built package contents match allowlisted manifest, generated references remain in sync.
+
+
+
+### P2.9 Play Mode startup readiness and one-shot post-start actions
+
+**Finding:** entering Play Mode does not guarantee scene initialization is complete; domain reload may reset pre-play static state, and Start/first-frame may not have run yet. Open upstream PR #1463 implements a startup job with scene_loaded/first_frame boundaries, optional one-shot code, status polling and no-resubmit semantics.
+
+**Recommendation — INVESTIGATE, then ADAPT if current beta still has this gap.**
+- Keep ordinary play action behavior unchanged unless wait/readiness options are supplied.
+- Expose an explicit startup job handle, timeout and ready criterion.
+- Generate an idempotency/request identifier before dispatch; after timeout/lost response, poll the known job rather than resending side-effecting on-ready code.
+- Persist lifecycle across domain reload. If code was already executing at reload, report interrupted/unknown state and never replay automatically.
+- Enforce the same policy for the Python tool and CLI REST path.
+
+**Acceptance tests:** enter Play Mode with and without domain reload; wait for scene load versus first frame; compile/reload during startup; code completes, errors or triggers another reload; response lost after job creation; client timeout followed by status poll; stop Play Mode/cancel; repeated request ID; selected Unity instance changes or multiple projects open.
+
+**Source:** [Upstream PR #1463](https://github.com/CoplayDev/unity-mcp/pull/1463). Check merge status and source diff immediately before implementation.
+
+### P2.10 Native test-run lifecycle cleanup after timeouts
+
+**Finding:** a timed-out MCP test job can be terminal from the caller's perspective while Unity's native test run still owns throttling/preferences/operation lock. Upstream PR #1460 adds native run IDs, cleanup-pending state preserved over domain reload and prevents new tests until cleanup completes.
+
+**Recommendation — PRIORITIZE if the failure is reproducible against current beta.** Do not merely delete the MCP job or free the lock when its response times out. Preserve ownership of the native run, make its cleanup state observable, reject overlapping tests while cleanup is pending, restore the original Editor interaction settings on all exit/error/reload paths, and prevent late callbacks from overwriting an already-reported timeout.
+
+**Acceptance tests:** timeout before and after Test Runner RunStarted; Editor reload mid-run; native exception/onError; cancellation; late RunFinished callback; cleanup then second job; cleanup that never completes with an escalation path; original interaction preferences restored exactly; no concurrent conflicting jobs.
+
+**Source:** [Upstream PR #1460](https://github.com/CoplayDev/unity-mcp/pull/1460).
+
+### P2.11 Safe, nonblocking connection/status refresh in the Editor UI
+
+**Finding:** connection/window focus polling can involve TCP probes, executable discovery, environment/uv validation and client-config file reads. If run synchronously on the Editor main thread, simply opening/focusing the MCP window can delay rendering or tool dispatch. Upstream PR #1465 supplies a testable helper that coalesces requests, caches results briefly, discards stale generations and avoids UI writes after window detach.
+
+**Recommendation — ADAPT if the target baseline still performs slow work synchronously.** Keep Unity API and UI changes on the main thread; move only thread-safe I/O/process calls to workers. Use cache keys and generations so an old request cannot overwrite a newer endpoint/client selection, and cap timeouts/concurrent process launches.
+
+**Acceptance tests:** slow/hung executable and TCP probe; repeat focus events coalesce; cache TTL; endpoint/client selection changes mid-flight; connection disconnect/reconnect mid-flight; window close/dispose and re-open; exceptions without secret/path leakage in logs; UI remains responsive while the worker is blocked.
+
+**Source:** [Upstream PR #1465](https://github.com/CoplayDev/unity-mcp/pull/1465).
+
+### P2.12 Prefab instance override discovery and scoped apply/revert
+
+**Finding:** upstream PR #1462 proposes listing property and structural prefab instance overrides and applying/reverting only the explicitly selected target/property/component/child. Ambiguous same-name siblings and selections that would widen an array write are rejected.
+
+**Recommendation — TRACK UPSTREAM, do not duplicate now.** This is a high-value workflow for understanding why a scene object doesn't visually follow prefab-asset edits. If not merged, inspect against the current manage_prefabs implementation before adopting; require narrow scope and clear Undo behavior.
+
+**Acceptance tests:** list only non-default overrides; property, added/removed component and added/removed GameObject overrides; revert/apply one property without changing sibling overrides; duplicate-name siblings require stable identity; array selection cannot widen unexpectedly; nested prefab lineage and prefab stage; unsupported Unity internal APIs report capability unavailable; Undo/redo and unsaved-scene dirty state.
+
+**Source:** [Upstream PR #1462](https://github.com/CoplayDev/unity-mcp/pull/1462).
+
+### P2.13 Configurable server instructions for project conventions
+
+**Finding:** upstream PR #1461 adds a UTF-8 instructions file loaded once at server startup and appends it to the default server instructions.
+
+**Recommendation — INVESTIGATE before adopting.** File-backed project conventions may reduce repeated instructions in prompts, but a single shared HTTP server can serve several projects and users. Document whether instructions are server-global, project-specific or user-specific; do not derive an instruction file from untrusted project content by default. Add a size cap, UTF-8 validation, startup failure behavior and no-secret logging.
+
+**Acceptance tests:** file unset/empty/valid UTF-8/BOM/invalid UTF-8/unreadable/oversized; command-line vs env precedence; both transports; default instructions preserved; shared server with different projects cannot receive the wrong project instructions; restart applies changes; errors omit sensitive file contents.
+
+**Source:** [Upstream PR #1461](https://github.com/CoplayDev/unity-mcp/pull/1461).
 
 ## P3 — Conditional / benchmark-driven enhancements
 
