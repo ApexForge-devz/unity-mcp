@@ -709,3 +709,21 @@ Residual cases in UPSTREAM_PR_1460_NATIVE_TEST_CLEANUP_REVIEW.md:
 The PR reports 1,575 Python tests passed with 18 skipped, relevant local EditMode/PlayMode tests passed on macOS Unity 6000.3.20f1, and compile checks in a fork workflow. Other Unity matrix legs and licence-dependent fork Unity/E2E tests were skipped. These are author-reported results, not an independently run validation.
 
 Recommendation: adapt the ownership state model after explicit supported Test Framework version tests, with acceptance coverage for pre-RunStarted hangs, monitor exceptions and clear-stuck/domain-reload. Source review only; no Unity tests were run.
+
+
+## Upstream PR #1463 — Play Mode startup readiness review — 2026-10-14
+
+Compared target beta (commit 142ea0af4890337f0ff6658df61db23982313717) with open/unmerged PR #1463, head 3eaa4b23fed490a159d67e5bc564b59636cc344f.
+
+**Good fit for script-first scene workflow:** opt-in scene_loaded/first_frame readiness gives a reliable gate before a screenshot or focused runtime assertion. Default play behavior remains unchanged without options. Python helper assigns a request ID before dispatch, disables retry for the initial side-effecting request and polls by the same job ID; after a successful initial response it pins status polling to the reported Unity project hash. The Unity service persists its executing state before running the optional body and does not replay a body marked executing across domain reload.
+
+**Residual concerns from source review:**
+- C# PlayModeStartupService trims its Jobs list to 16 but keeps every request UUID in a SessionState Requests HashSet without any cap or age pruning. Persist serializes this ever-growing set, so its payload and serialization work grow with the Editor session.
+- When the initial start response is lost, the Python helper returns a guessed request/job ID with status unknown but no Unity instance/hash in the fallback data. This preserves no-resubmit safety but does not itself pin a follow-up status lookup; with multiple Editors, same-instance selection depends on the client. Existing unit tests check the ID/no-replay behavior but don't prove multi-Editor recovery in that exact lost-first-response case.
+- The one-shot body is transient Execute Code, not the persistent scene-generation program. A domain reload after the body starts is marked failed and not replayed; that prevents duplicate attempt but cannot establish whether side effects occurred before reload. Treat as potentially indeterminate and read back postconditions.
+- On-ready code result is retained in each recent job response; confirm/cap stored response size, as job count bound alone does not prove each payload is small.
+- Timeout fails the startup job and cancels pending code but does not stop Play Mode; an already executing call can complete.
+
+The author reports Python 1,613 passed / 18 skipped, 13 new Unity EditMode tests passed, runtime checks on Unity 6000.3.20f1 + Test Framework 1.6.0, and compile checks on 6000.0.75f1. Other four Unity-version checks and license-dependent Unity/E2E jobs were skipped. This is author-reported evidence; no tests were run in this research review.
+
+Recommendation: adapt first_frame wait and status semantics, but only use on_ready_code for narrowly scoped read-only validation in the deterministic generator workflow. Add bounded request-ID retention and a lost-initial-response routing test before adopting. See [UPSTREAM_PR_1463_PLAY_STARTUP_REVIEW.md](UPSTREAM_PR_1463_PLAY_STARTUP_REVIEW.md).

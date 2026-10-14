@@ -80,6 +80,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Pashara Frame Debugger specialist fork review](FORK_PASHARA_FRAME_DEBUGGER_REVIEW.md)
 - [Memory Profiler specialist fork review](FORK_MEMORY_PROFILER_REVIEW.md)
 - [Upstream PR #1460 native test cleanup review](UPSTREAM_PR_1460_NATIVE_TEST_CLEANUP_REVIEW.md)
+- [Upstream PR #1463 Play Mode startup review](UPSTREAM_PR_1463_PLAY_STARTUP_REVIEW.md)
 - [Serraya profiler expansion review](FORK_SERRAYA_PROFILER_REVIEW.md)
 - [Cross-repository operational reliability patterns](OPERATIONAL_RELIABILITY_PATTERNS.md)
 

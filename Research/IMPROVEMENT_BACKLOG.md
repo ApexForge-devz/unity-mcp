@@ -353,18 +353,24 @@ Do not copy the package unchanged: the reflection contract targets Unity interna
 
 ### P2.9 Play Mode startup readiness and one-shot post-start actions
 
-**Finding:** entering Play Mode does not guarantee scene initialization is complete; domain reload may reset pre-play static state, and Start/first-frame may not have run yet. Open upstream PR #1463 implements a startup job with scene_loaded/first_frame boundaries, optional one-shot code, status polling and no-resubmit semantics.
+**Finding:** the beta play action acknowledges entering Play Mode without proving the active scene loaded or that Start/first-frame initialization completed. Open upstream [PR #1463](https://github.com/CoplayDev/unity-mcp/pull/1463) adds opt-in scene_loaded/first_frame waits, one-shot on_ready_code, request/job identity, status polling and no-resubmit behavior.
 
-**Recommendation — INVESTIGATE, then ADAPT if current beta still has this gap.**
-- Keep ordinary play action behavior unchanged unless wait/readiness options are supplied.
-- Expose an explicit startup job handle, timeout and ready criterion.
-- Generate an idempotency/request identifier before dispatch; after timeout/lost response, poll the known job rather than resending side-effecting on-ready code.
-- Persist lifecycle across domain reload. If code was already executing at reload, report interrupted/unknown state and never replay automatically.
-- Enforce the same policy for the Python tool and CLI REST path.
+**Recommendation — ADAPT the wait gate after focused validation; keep on_ready_code secondary.**
+- Keep ordinary play behavior unchanged when no startup options are provided.
+- Use an explicit scene_loaded or first_frame milestone instead of sleeps/polling ad hoc from the agent prompt.
+- Generate a request ID before dispatch, avoid automatic replay of the startup request and expose a status lookup by the same job ID after a lost response.
+- Persist lifecycle state across domain reload. An executing body interrupted by reload must not be re-run automatically; treat its result as potentially indeterminate and verify postconditions.
+- Keep polling bound to the same Unity project. If the initial response is lost, return the originally selected route identity as well as the guessed job ID; test with multiple Editors.
+- Cap both recent job results and request-ID tombstones. PR #1463 caps job records at 16 but the SessionState Requests set is never pruned, so serialized state and persistence work grow for the lifetime of the Editor session.
+- For this agent's deterministic scene workflow, use first_frame readiness before visual/runtime validation and keep any on_ready_code body read-only. Scene-generation edits belong in the persistent generator source, never an ephemeral startup snippet.
+- Bound retained on_ready_code results and make clear that wait_timeout does not stop Play Mode or cancel a body already executing.
 
-**Acceptance tests:** enter Play Mode with and without domain reload; wait for scene load versus first frame; compile/reload during startup; code completes, errors or triggers another reload; response lost after job creation; client timeout followed by status poll; stop Play Mode/cancel; repeated request ID; selected Unity instance changes or multiple projects open.
+**Acceptance tests:** enter Play Mode with domain reload; distinguish scene load from first frame; timeout while paused then resume with no delayed execution; same request ID/status lookup without replay; status polling after transport loss in a multi-Editor setup; request-ID ledger and job-result cap across many requests; execution interrupted by reload; large result payload cap; unsupported older Unity package; preservation of Enter Play Mode settings.
 
-**Source:** [Upstream PR #1463](https://github.com/CoplayDev/unity-mcp/pull/1463). Check merge status and source diff immediately before implementation.
+**Source review:** [UPSTREAM_PR_1463_PLAY_STARTUP_REVIEW.md](UPSTREAM_PR_1463_PLAY_STARTUP_REVIEW.md).
+
+**Source:** [PR #1463](https://github.com/CoplayDev/unity-mcp/pull/1463) (open at review time); target [ManageEditor.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageEditor.cs).
+
 
 ### P2.10 Native test-run lifecycle cleanup after timeouts
 
