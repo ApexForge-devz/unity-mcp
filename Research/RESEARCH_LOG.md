@@ -146,3 +146,54 @@ These are recommendations. No Unity project was launched, no Python test suite o
 3. Continue source review of candidate implementations with meaningful unique code, including current Unity API compatibility, tests and licenses.
 4. Verify exact 2026-07-28 tools/list/discovery protocol requirements directly against the current official spec and formulate a client compatibility matrix.
 5. No Unity runtime/build/test/benchmark has been executed in this session; retain those as explicit validation tasks.
+
+
+## 2026-10-14 — Branch, tests, and active-upstream consistency pass
+
+### Branch relationship, corrected and source-mapped
+
+- Target/upstream beta HEAD: `142ea0af4890337f0ff6658df61db23982313717`.
+- Upstream main HEAD: `aa5fc638d623f56178d50329d9ad8c541a57fe66`.
+- With `beta` as compare base and `main` as compare head, GitHub reports `main` as 115 commits behind beta. The research branch is correctly based on beta. This direction was initially misstated in a progress update and corrected before finalizing these documents.
+- Fetched the key P0/P1 source paths from main as a second check. The reviewed batch wrapper, Unity batch handler, tool-group manager, SafeZipExtractor, ManageAsset and FrameDebuggerOps have the same blob SHA as beta. FastMCP remains bounded below v4. ExecuteCode has three assembly-loading compatibility call-site differences, but those do not resolve the caller-controlled safety_checks trust-boundary issue.
+- Full branch/issue/PR status and file SHAs are recorded in [UPSTREAM_BRANCH_COMPARISON.md](UPSTREAM_BRANCH_COMPARISON.md).
+
+### Active upstream proposals and status snapshot
+
+- [PR #1466: read-only built AssetBundle explorer](https://github.com/CoplayDev/unity-mcp/pull/1466) was open at the time of inspection. Its proposed path-restricted, paginated bundle list/info actions should be tracked before implementing the same feature. AssetBundle introspection is not the same as an AssetDatabase reference graph.
+- [Issue #1438: path allowlist for execute_code file deletion](https://github.com/CoplayDev/unity-mcp/issues/1438) was open. It is a narrower user request and does not by itself provide a server-enforced trust boundary for arbitrary C#.
+- [Issue #709: disabled tools reappear/list](https://github.com/CoplayDev/unity-mcp/issues/709) is a closed historical report against v9.4.0, not proof of an unresolved current bug.
+- [PR #1470: actionable guidance when no Unity session is available](https://github.com/CoplayDev/unity-mcp/pull/1470) was open and based on the reviewed beta SHA. Its body reports Python test results, but they have not been independently run during this research session.
+- These statuses can change; check current merge/closure state immediately before implementation.
+
+### Mapped source recommendations to existing tests
+
+- [SafeZipExtractorTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/SafeZipExtractorTests.cs), blob `e27b742d50516aa86d352e0174c3f6641bcd27b1`, already checks normal extraction, blocked extensions and traversal rejection. It lacks expanded-byte and entry-count quota coverage.
+- [ExecuteCodeTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/Tools/ExecuteCodeTests.cs), blob `dc3c4e360afe9c3273c5c39a1a8ff7d716c88464`, already covers routine execution and errors, blocks file deletion/process-start/infinite-loop patterns when checks are enabled, and tests that `safety_checks=false` bypasses the blocklist. New work should enforce a server policy and test aliases/remote paths, not duplicate the local blocklist tests.
+- [BatchExecuteKeyPreservationTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/Tools/BatchExecuteKeyPreservationTests.cs), blob `3419dfed59655ef3b21d92e3f6c8a5a4c98e5363`, checks key preservation and representative batch behavior. Add contract and output-budget cases around it.
+- CoderGamester's `BatchExecuteTool.cs` uses Unity Undo groups and `RevertAllDownToGroup` for its atomic option. This is not a transaction across external/file/server side effects or commands that do not register Undo; the target should not transplant an unrestricted atomic promise.
+- Reviewed CoderGamester security/retry/path tests and Ozymandros path/validation test designs. Reviewed PICO XR source carries a proprietary notice that prohibits reproduction without permission, so it remains reference-only.
+
+### New documents and commits in this tranche
+
+- [PROTOCOL_COMPATIBILITY.md](PROTOCOL_COMPATIBILITY.md): modern MCP tools/list contract and FastMCP 4 compatibility spike plan.
+- [UPSTREAM_BRANCH_COMPARISON.md](UPSTREAM_BRANCH_COMPARISON.md): beta/main source snapshot, issue/PR status and overlap rules.
+- [SPECIALIST_WORKFLOWS.md](SPECIALIST_WORKFLOWS.md): Frame Debugger, Memory Profiler and AssetDatabase dependency analysis.
+- [ALTERNATIVES.md](ALTERNATIVES.md): extended with CoderGamester, Ozymandros and PICO patterns.
+- [FORK_COMPARISONS.md](FORK_COMPARISONS.md): expanded compare outcomes including the very stale Puerts/TypeScript fork.
+- [FORK_CANDIDATE_REGISTER.md](FORK_CANDIDATE_REGISTER.md): expanded search terms/candidates and explicit coverage limits.
+- [IMPROVEMENT_BACKLOG.md](IMPROVEMENT_BACKLOG.md): incorporates existing-test coverage and active upstream proposals.
+
+Selected source commits include:
+- `1eca549253e72309225982b866d0205ea924010a` — upstream branch/issue/PR status.
+- `aa42a913046879a96167ead38f5b998413b18060` — backlog cross-check against upstream proposals.
+- `17b1eef0e70f223a99558129045fb4b96e3d1f50` — further fork comparison results.
+- `2c66d2405add5a446ebee3c88617c1ed34c00ca7` — security/lifecycle and specialist source patterns.
+- `b44351d4d546646c4b8174e5fa07a42d554be8f4` — align recommendations with existing target tests.
+- `6b90032a093551518a6c0bf845fee5c26b41a248` — source-review status in repository inventory, if this commit remains present on current branch history.
+
+## Hard stop before describing the work as exhaustive
+
+This branch is a substantial source-informed research tranche, **not yet an exhaustive inventory of all direct forks**. The upstream repo metadata returned 1,553 forks. Repository-search pages and candidate-by-candidate compares cannot prove coverage of all 1,553. The available GitHub connection rejects the canonical forks-list endpoint, the public forks page is not retrievable through the browsing path, and direct network DNS is unavailable in the working runtime. Do not mark the fork phase complete until a full paginated fork inventory (or a demonstrably equivalent complete source) can be read, normalized, and classified.
+
+No Unity Editor session, Unity package build, Python test suite, CI workflow, live MCP client round-trip, or performance benchmark was executed by this research pass. Those are validation steps, not completed checks.
