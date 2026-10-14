@@ -91,3 +91,57 @@ These are recommendations. No Unity project was launched, no Python test suite o
 5. Inspect Unity-side implementation/tests of Ozan's dependency analyzer, then compare semantics to target code.
 6. Inspect protocol changes with authoritative MCP spec/FastMCP release references and design a compatibility matrix, especially modern static discovery versus legacy group visibility.
 7. Update this log, README coverage checklist, and backlog after each stage. Do not mark research complete until the stated inventory boundary and candidate-review criteria are met.
+
+
+## 2026-10-14 — Expanded fork discovery and specialist deep dives
+
+### Fork universe and search boundary
+
+- GitHub repo metadata for [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) reports **1,553 forks** at 2026-10-14T04:58:04Z, default branch beta, 14,923 stars and MIT license metadata.
+- Additional queries covered `CoplayDev Unity fork:true`, `coplaydev-unity-mcp fork:true`, `MCPForUnity fork:true`, `Unity AI Game Developer fork:true`, `frame debugger unity-mcp`, `memory profiler unity-mcp`, and broad `unity-mcp fork:true` pages 1–10. Broad result pages overlap and include unrelated/independent implementations, so they must not be summed as unique direct forks.
+- The connected GitHub interface can fetch repo metadata/tree/source and compare refs, but the canonical `/repos/CoplayDev/unity-mcp/forks` endpoint is rejected; the public HTML forks listing was not retrievable. The `parent:` repository filter did not return results. Complete direct-fork enumeration is therefore still blocked by retrieval capability.
+- Expanded the register with additional candidates, including `czmomocha/unity-coplayDev-mcp`, `Kayungko/McpForUnityChinese`, `sabriboughanmi/Unity-MCP-MemoryProfiler`, `Ozymandros/Unity-MCP-Server`, `Pico-Developer/Unity-MCP-Extensions`, `Savidyaf/Unity-VFX-Graph-MCP-Tool`, and others. Statuses distinguish source-reviewed candidates, README-only projects and candidates needing parent/diff verification.
+
+### Additional fork comparison
+
+- [`czmomocha/unity-coplayDev-mcp`](https://github.com/czmomocha/unity-coplayDev-mcp): compare reports 8 commits ahead, 1,541 behind and 32 changed files relative to upstream beta. Reviewed `manage_ts_script.py`, which allows TypeScript/TSX under `Assets` and `DevCommon/TSProject` with path traversal checks, plus its custom-tool guide and Unity 2020 compatibility summary. Useful only for Puerts/TypeScript use cases; not safe to merge wholesale because the branch is very stale.
+- The [target Frame Debugger handler](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/Profiler/Operations/FrameDebuggerOps.cs) exposes enable/disable/paged event listing, while the Pashara derivative has async capture sessions, event query/detail, summaries, diffs and render-target previews. The useful delta is a substantial optional rendering-inspection workflow plus capture-consistency safeguards, not just tool renaming.
+- The [Memory Profiler extension](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler) source contains incremental snapshot-open lifecycle, bounded sessions, paginated query and diff engines. Target snapshot tools only take/list/compare file metadata, so queryable snapshot analysis is a plausible optional capability gap.
+- The Ozan asset dependency handler was read beyond its MCP wrapper. It calls Unity's AssetDatabase for reverse-dependency and unused-candidate scans but has simplified recursive depth/cycle detection, potentially expensive full-project scans, and false-positive risks when assets are loaded via Addressables, Resources, code strings or external pipelines. Reuse action ideas, not its heuristic conclusions.
+- The current target FrameDebuggerOps and MemorySnapshotOps sources were inspected directly, reducing the risk of recommending a duplicate subsystem without knowing current coverage.
+
+### Current protocol reference verification
+
+- The MCP 2026-07-28 announcement describes a stateless protocol core, removal of `initialize`/`initialized` and `Mcp-Session-Id`, a new `server/discover` mechanism, deterministic/cached discovery, and authentication changes.
+- FastMCP 4.0 release notes and protocol notes describe support for both the newer 2026-07-28 protocol era and legacy handshake-era clients in one server. This supports a **controlled compatibility migration** recommendation, not a blind dependency bump.
+- Reference links: [MCP 2026-07-28 announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/), [Tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools), [FastMCP v4 protocol notes](https://github.com/PrefectHQ/fastmcp/blob/main/dev-docs/v4-notes/protocol-2026.md), [FastMCP v4.0 release](https://github.com/PrefectHQ/fastmcp/releases/tag/v4.0.0).
+- These protocol findings still require an explicit contract matrix for modern and supported legacy clients before changing the FastMCP upper bound or how `manage_tools` interacts with tool visibility.
+
+## Latest research commit sequence (selected)
+
+| Commit | Contents |
+|---|---|
+| 4f61789a53ae4e0cac124641303285bfdeaf996a | Initial Research workspace README |
+| a2168cc1a26a19d4d91a9e594f571aac24554c3b | Methodology and evidence standard |
+| 3856c68c5a82275913b175c88ce98e426fc98fae | Preliminary repository/fork inventory |
+| cde48679f82b43f01d68a3a7e49f502593c02aa8 | Current target baseline |
+| e8696e8109fbbb4953df7ecebd3c30e0d86f6681 | Initial fork comparisons |
+| 614fb380cf9183228425dd8e780d9dd2309e4c5f | Independent implementation comparisons |
+| 854ad7777dfb26dd1b072c050ba66f48561dd735 | Initial consolidated improvement backlog |
+| 5052d5fdb691d5d35ae5d21fb5012b8e9a8622a7 | Initial coverage/research log |
+| 6ffa5100534269ce5e2e2b453e1cb8a593c925df | Frame Debugger gap expanded |
+| 86b976f0c76e6ee6a91b4dbd0b7de905ef3fa3ae | Memory Profiler backlog addition |
+| 13d5b8afa219a43b3dd4611645813e7cf5ede6c0 | Asset and memory specialist-source review |
+| 972c79cf2f69155ec36eb1833f4968ecbd0859eb | Stale Puerts/TypeScript fork findings |
+| d98bc62ca87c9202460c9a595322950feeff8514 | Expanded candidate register |
+| df88766bb853e91ca8d4e774957c084533ee6f50 | Dedicated specialist workflow review |
+| undefined | Current log version before this update |
+| undefined | (placeholder for this append's preceding file SHA; next commit supersedes prior log) |
+
+## Remaining work, ordered
+
+1. Get a complete paginated direct-fork list through a source that permits access to the forks endpoint. Do not infer completeness from repository search.
+2. For every fork with nontrivial ahead commits, compare changed source/tests to the common ancestor and target baseline; classify all discovered direct forks, including stale/mirror/archived states.
+3. Continue source review of candidate implementations with meaningful unique code, including current Unity API compatibility, tests and licenses.
+4. Verify exact 2026-07-28 tools/list/discovery protocol requirements directly against the current official spec and formulate a client compatibility matrix.
+5. No Unity runtime/build/test/benchmark has been executed in this session; retain those as explicit validation tasks.
