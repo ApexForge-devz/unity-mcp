@@ -392,3 +392,17 @@ Backlog changes:
 - Added the detailed source-review link to README.
 
 No runtime changes, Unity tests, DNS/provider network checks or benchmarks were performed in this tranche.
+
+
+## Continued fork source review — Meshy recovery and test-result resilience (2026-10-14)
+
+Added:
+- [FORK_HAOHAO_MESHY_RECOVERY.md](FORK_HAOHAO_MESHY_RECOVERY.md): reviews haohao-0407's atomic Meshy journal, preview/refine checkpoints, explicit resume and its critical rule that an unknown billable POST is never automatically replayed. The fork's test source includes a true Editor domain-reload harness and checks that the paid POST count remains one. No tests were run here.
+- [FORK_ONLYFENG_TEST_STATUS_CACHE.md](FORK_ONLYFENG_TEST_STATUS_CACHE.md): reviews onlyfeng's 20-entry identity-scoped test status cache and retry/degraded fallback behavior. It preserves high-detail terminal snapshots over low-detail snapshots and tests per-instance/per-user isolation. The review flags an untested out-of-order cache overwrite hypothesis: the remember function is not given the poll's observation order, so add a monotonicity guard before porting.
+- P1.9 added for durable paid-provider checkpoints, no automatic replay when submission outcome is unknown, explicit resume and journal privacy/retention.
+- P2.16 added for bounded test-status caching on transient bridge stalls, detail fidelity and caller/Unity identity isolation.
+- Candidate register/README links added.
+
+Current Meshy docs were also inspected through official docs pages: the image-to-3D API exposes the model/geometry/texture/topology/target-format fields used by the typed options layer, but documents lowpoly as retiring on **2026-10-30**. Since this research snapshot is **2026-10-14**, the fork's current choice to disable T1/lowpoly in advance of the announced date is a product policy, not a fact that should be silently copied. Official sources: [Meshy Image-to-3D API](https://docs.meshy.ai/en/api/image-to-3d), [Meshy API Changelog](https://docs.meshy.ai/en/api/changelog), [Meshy API Quickstart](https://docs.meshy.ai/en/api/quick-start). Provider-host allowlist domains and real response redirects still need separate verification before adapting the ykh downloader.
+
+No runtime code or tests were changed/run. This work remains source review and backlog synthesis.
