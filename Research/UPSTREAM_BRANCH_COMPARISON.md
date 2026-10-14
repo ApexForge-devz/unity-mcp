@@ -72,3 +72,26 @@ Before implementing any feature in this research branch:
 2. Check upstream open/merged PRs and recent commits after the current beta base.
 3. If a PR exists, assess its behavior, test coverage and risks rather than duplicating it blindly.
 4. Keep upstream PR test claims labeled as claims unless CI logs or local test execution independently verify them.
+
+
+## 5. Additional open PRs reviewed on 2026-10-14
+
+The repository's open-PR list was fetched again. These proposals are useful for avoiding duplicate feature plans and for understanding recurring reliability problems:
+
+| PR | Topic | State at snapshot | Relevance |
+|---|---|---|---|
+| [#1472](https://github.com/CoplayDev/unity-mcp/pull/1472) | Custom tools with required parameters after optional parameters | Open | Python 3.14 registration/schema regression; add version-specific registration tests if not already fixed upstream |
+| [#1468](https://github.com/CoplayDev/unity-mcp/pull/1468) | Preserve custom stdio launcher and environment during auto-configuration | Open | User config is state that automation should merge/preserve, not overwrite |
+| [#1465](https://github.com/CoplayDev/unity-mcp/pull/1465) | Move Editor window focus-refresh I/O off main thread | Open | UI responsiveness issue separate from command-dispatch liveness |
+| [#1463](https://github.com/CoplayDev/unity-mcp/pull/1463) | Wait for Play Mode startup, then run code | Open | Correct readiness boundary after domain reload/scene Start |
+| [#1462](https://github.com/CoplayDev/unity-mcp/pull/1462) | Prefab instance override inspection/apply/revert | Open | Common source of scene-vs-prefab mismatch; scoped writes and rollback deserve tests |
+| [#1461](https://github.com/CoplayDev/unity-mcp/pull/1461) | Append a user-provided instructions file | Open | Project-specific context can be configuration rather than hardcoded generic instructions |
+| [#1460](https://github.com/CoplayDev/unity-mcp/pull/1460) | Test-run initialization and cleanup after timeout | Open | Failing MCP job does not necessarily mean Unity test operation/lock has been cleaned up |
+| [#1459](https://github.com/CoplayDev/unity-mcp/pull/1459) | Asset-search performance/path validation | Open | Direct overlap with target draft PR #1 |
+| [#1417](https://github.com/CoplayDev/unity-mcp/pull/1417) | Native Editor-window screenshots | Open | Target draft PR #1 contains files byte-identical to this contributor PR's C#/Python/test/docs files |
+| [#1350](https://github.com/CoplayDev/unity-mcp/pull/1350) | Modal-dialog reporting and answering | Open | Direct conceptual overlap with target draft PR #1; target source is longer and materially different |
+| [#1286](https://github.com/CoplayDev/unity-mcp/pull/1286) | Session cleanup and deduplicate tool notifications | Open | Relevant to modern protocol migration, connection cleanup and avoiding repeated list-change notifications |
+| [#1285](https://github.com/CoplayDev/unity-mcp/pull/1285) | Scope HTTP endpoint/server ownership per project | Open | Relevant to cross-project isolation and instance routing |
+| [#1194](https://github.com/CoplayDev/unity-mcp/pull/1194) | Auto-select Unity instance by launch directory/worktree | Open | Could reduce repeated instance selection but must fail closed if identity remains ambiguous |
+
+PR statuses and descriptions are point-in-time. Before porting, inspect current status, head SHA, patch, relevant tests and actual CI state. A green workflow umbrella can contain skipped Unity/E2E jobs; inspect individual jobs rather than treating every run with a success conclusion as full runtime validation.
