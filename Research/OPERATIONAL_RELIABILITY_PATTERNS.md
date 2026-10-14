@@ -135,3 +135,24 @@ Across these independent codebases, the strongest recurring correctness patterns
 - test fixtures include active compilation, reconnect, modal and timeout races rather than only the steady state;
 - safety profiles are clearly differentiated but no regex check is called a general C# sandbox;
 - optional integration modules are isolated behind explicit package/version dependencies.
+
+
+## 7. Map these patterns against the actual target beta
+
+The target already has useful job-specific machinery; avoid treating “async jobs” as wholly missing:
+
+- `MCPForUnity/Editor/Services/TestJobManager.cs` (blob `b20b2f7cf05f8dd254200a94d49521a6630f85a6`) persists Test Runner job state across domain reload, throttles persistence, caps retained jobs at 10 and caps persisted failure details. `GetTestJob.cs` exposes polling. AssetGen, package and build workflows also have specialized job managers or handles.
+- `MCPForUnity/Editor/Helpers/Response.cs` defines a generic `PendingResponse` contract, but that is not proof all long-running tools share one standardized pollable job ID/result lifecycle. Map each async operation before proposing a generic job registry.
+- `TransportCommandDispatcher.cs` (blob `5b013154299f75052ea73449f85b36b2cbde1353`) already has cancellation-token registration, per-request cleanup and a check that a request cancelled before `ProcessCommand` begins will not execute. Once a handler is already running, cancellation does not forcibly undo/interupt its side effects. Preserve this distinction.
+- In the inspected `ProcessQueue`, every not-yet-executing item in the global `Pending` dictionary is copied into a `ready` list and processed in one `EditorApplication.update` pass. The dictionary is keyed by request GUID and there is no explicit pending-count/serialized-byte admission cap in the inspected dispatcher. There is also no apparent per-update item/time budget across multiple short synchronous handlers; one individual handler can of course exceed any budget. That is a concrete queue-backpressure/fairness gap worth testing.
+- The target tool registry and helpers already offer per-tool pagination/truncation in selected operations, and TestJobManager limits its own detailed history. However, source searches plus inspection of `Response.cs`, `WebSocketTransportClient.cs`, and `unity_response.py` did not reveal a single universal serialized-result limit enforced across the final transport boundary. Treat that as an audit finding to verify via a comprehensive response-path search before implementing a central layer—not an assertion that no individual output cap exists anywhere.
+
+### Test implications
+
+1. **Already started vs not started:** cancel before dispatch, cancel after the request was moved to the local ready list but before handler invocation, and cancel after handler starts; assert which side effects may occur.
+2. **Queue pressure:** send many commands while a native modal blocks Editor updates; assert bounded queued command count and retained bytes, clear overload responses, queue-age diagnostics, and cleanup on disconnect/domain reload.
+3. **Editor frame budget:** enqueue many quick commands and observe whether the dispatcher monopolizes one update. If adding time/item slicing, preserve ordering and ensure expensive tool work is not run concurrently.
+4. **Job contract audit:** enumerate every operation returning a pending status, async handle, job ID or delayed completion. Verify ID lifetime/generation, terminal result retention, error status, cancellation, cross-project binding and no automatic mutation re-execution.
+5. **Result cap audit:** find every serialization boundary for WebSocket, HTTP, stdio/CLI and job polling; test plain text, nested JSON, stack traces, images/base64 and tool-specific result types.
+
+No target test or runtime benchmark was executed for this mapping.
