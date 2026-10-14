@@ -55,6 +55,8 @@ This folder is a living research record. Findings must be updated as source revi
 - [Draft PR schema-compaction code review](DRAFT_PR_CODE_REVIEW.md)
 - [Draft PR modal liveness and scene-guard review](DRAFT_PR_MODAL_LIVENESS_REVIEW.md)
 - [ykh09242 AssetGen download and ZIP security review](FORK_YKH09242_ASSETGEN_SECURITY.md)
+- [haohao-0407 Meshy recovery review](FORK_HAOHAO_MESHY_RECOVERY.md)
+- [onlyfeng test-status cache review](FORK_ONLYFENG_TEST_STATUS_CACHE.md)
 - [Cross-repository operational reliability patterns](OPERATIONAL_RELIABILITY_PATTERNS.md)
 
 ## Important interpretation rules
