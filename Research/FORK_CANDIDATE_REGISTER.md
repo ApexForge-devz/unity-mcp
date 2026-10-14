@@ -149,3 +149,11 @@ Other cross-owner compare calls returned 404 for a few candidates (including a-n
 - The1Studio's input simulator is a promising optional Play Mode test capability, but game-facing input must be proven to reach the player loop and the focused Game View; a queued device event alone is not end-to-end success.
 - The1Studio's RunInBackground guard explicitly documents an unresolved crash/quit restore gap, so it is a candidate to investigate, not a no-risk patch.
 - Vangardo's facade demonstrates a possible stable, typed operation catalog and recoverable compact output, but the full feature runs as an additional MCP server and its schema/action allowlists may drift. Benchmark against the current upstream package before choosing a facade versus internal integration.
+
+
+## G. Small-delta fork checks: bgr and xOrfe
+
+| Repository/ref | Compare result | Unique contribution | Decision |
+|---|---|---|---|
+| [bgr/unity-mcp:bgr-patches](https://github.com/bgr/unity-mcp/tree/bgr-patches) | 2 ahead, 1,311 behind | Preflight refresh uses compile=none to avoid a domain reload; connection section adds auto-reconnect when the local server is reachable but no session is active | Investigate narrowly. Compile-none needs test-before-adoption; auto-reconnect needs a manual-disconnect override and lifecycle tests. |
+| [xOrfe/unity-mcp:beta](https://github.com/xOrfe/unity-mcp/tree/beta) | 2 ahead, 635 behind | Antigravity Windows/Linux config path changes | Already superseded: target beta now uses Antigravity 2.0 path ~/.gemini/config/mcp_config.json for Windows/macOS/Linux. |
