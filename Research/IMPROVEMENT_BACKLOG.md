@@ -103,6 +103,37 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Source patterns:** [AnkleBreaker identity checks](https://github.com/AnkleBreaker-Studio/unity-mcp-server/blob/main/docs/discovery.md), [Ozan Unity Editor MCP](https://github.com/ozankasikci/unity-editor-mcp).
 
+
+### P1.4 Prevent silent serialized-property write corruption
+
+**Finding:** In target beta, the integer SerializedProperty branch pre-checks that a value looks integer-like, then uses ParamCoercion.CoerceInt(value, 0) / CoerceLong(value, 0). The coercion helpers catch overflow/parse failures and return defaults, so a large LayerMask bit pattern or other out-of-range payload can become 0 while the surrounding tool path reports success. The1Studio's [commit 970ac290](https://github.com/The1Studio/unity-mcp/commit/970ac29098b4b836cd6de596043f5f92aecf508f) adds TryCoerceInt/TryCoerceLong, switches serialized writes to checked conversion, and checks selected reflection writes by readback. Its [ComponentOps.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/ComponentOps.cs) also supports vector/struct leaves in the SerializedProperty path; our inspected target switch currently rejects those leaves as unsupported.
+
+**Recommendation — ADAPT (P1 correctness):**
+- Add explicit TryCoerceInt/TryCoerceLong helpers for mutation paths; preserve permissive/defaulting coercion only where failure-to-default is an intentional read/input behavior.
+- Keep a failed conversion as an error. Never turn an invalid write into a plausible default and success response.
+- Add write-back/readback verification for value-type intermediate properties where CLR reflection works on boxed copies; do not add blind readback for properties where Unity uses nontrivial normalization without defining expected comparison.
+- Add supported vector/struct cases to the SerializedProperty fallback with shared parsers, and document exactly which forms are accepted.
+- Preserve existing native-field/UnityEvent component tests; add coverage for large LayerMask values, integer boundaries/overflow, long bounds, bad strings, vector object/array forms, and no-mutation-on-failure.
+
+**Acceptance tests:** int/long min/max and just-outside bounds; very large JSON integer; invalid/empty string; LayerMask values with high bits; known vector/Quaternion/Color/Rect/Bounds/AnimationCurve shapes; malformed shape rejected; failed conversion leaves prior serialized value intact; reflected struct-property write either persists or returns a failure. Run in Unity EditMode across supported versions.
+
+**Evidence:** target [ComponentOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/ComponentOps.cs) blob ec9dc63684595811ac1c552271201ce5b65fa704; target [ParamCoercion.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/ParamCoercion.cs) blob 38a8e32d74fcfabfc7bd82a8af7b64363308278d; The1Studio's [checked coercion commit](https://github.com/The1Studio/unity-mcp/commit/970ac29098b4b836cd6de596043f5f92aecf508f) and [vector property commit](https://github.com/The1Studio/unity-mcp/commit/64279d6db40c46d2ffefebc1285b3fbbb5ddc59e).
+
+### P1.5 Re-evaluate operation-level capability discovery against a facade reference
+
+**Finding:** target PR #1 implements Core-first tool descriptions, description compaction and a get_tool_details endpoint, but does not centralize tool-result sizing. [Vangardo/unity-mcp-efficient](https://github.com/Vangardo/unity-mcp-efficient) demonstrates an alternative companion architecture: stable six-tool surface, action-level operation catalog, bounded compact results and an expiring result store. It is a separate server, not a patch to the target.
+
+**Recommendation — INVESTIGATE before changing architecture:**
+- Benchmark current PR #1 compaction against an operation-level facade and against current beta without either, using the same current tool catalog/version.
+- Compare schema bytes/tokenizer counts, operation search recall/rank, unknown/ambiguous phrase handling, actual task completion, result bytes, extra round-trips and mutation errors.
+- Prefer small internal changes (stable action-specific schemas, centralized result compactor and retrieval handles) unless the separate facade materially reduces maintenance or integration costs.
+- Preserve operation-level read-only/destructive/idempotency annotations; do not give every call the same conservative mutation annotation simply because it goes through one wrapper.
+- Add cross-project and multi-client tests for stored result handles and request IDs before any shared/remote deployment.
+
+**Known risks:** Vangardo's benchmark date/catalog baseline is upstream v10.1.0 (August 2026), the search suite has only 15 cases, action-specific allowlists need schema-parity maintenance, and the inspected result store does not visibly bind result IDs/request receipts to authenticated caller/project. Its compressed-storage byte cap also preserves one oversized item, and the raw result exists before compaction. Treat these as review questions—not proven production exploits—before reusing its design.
+
+**Acceptance tests:** reproduce the same six-tool/operation discovery benchmark on current beta; test schema parity for all action tools; exact/ambiguous/unknown operation names; output budgets for hierarchy/assets/logs/images; TTL/eviction/durable restart; concurrent requests with the same idempotency key; different arguments under the same key are rejected; result handles cannot cross project/principal boundaries; large raw output is capped before unbounded materialization where feasible.
+
 ## P2 — Reliability and high-value domain work
 
 ### P2.1 Editor main-thread liveness and retry safety
@@ -162,6 +193,27 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 **Acceptance tests:** open/cancel/close lifecycle; bounded session count; paged/sorted/filtered queries; snapshot metadata and summaries; diff rows for positive and negative changes; paths-to-roots/references; invalid or incompatible snapshots; missing/older package; disposal and domain-reload behavior.
 
 **Sources:** [Target MemorySnapshotOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/Profiler/Operations/MemorySnapshotOps.cs); [specialist Tool_MemoryProfiler.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Editor/Scripts/Tool_MemoryProfiler.cs); [SnapshotQueryEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/SnapshotQueryEngine.cs); [source/test analysis](SPECIALIST_WORKFLOWS.md).
+
+
+### P2.6 Optional Play Mode input simulation and task validation
+
+**Finding:** The1Studio's separate testing group provides target discovery, click/double-click/drag/scroll, key/text/touch input, UI bounds, bounded sequences and status polling. Its Input System fix queues state events instead of writing pointer state into an Editor update buffer; a focus guard warns when the Game View may not process the input. The current target beta tree has no equivalent input-simulation tool.
+
+**Recommendation — INVESTIGATE as a testing capability, not core by default.** First choose supported input backends (legacy Input Manager, new Input System, touch/EnhancedTouch), target-resolution modes, foreground/focus policy and cancellation semantics. Use declarative bounded sequences and result handles; don't expose arbitrary code as the workflow language.
+
+**Acceptance tests:** injected key/mouse/touch state observed by a test scene; no false success when Unity/Game View is unfocused; proper bounds and resolution mapping at several DPI/scales; Play Mode transitions; sequence validation/timeout/cancel; legacy/new input system variants; no leaked synthetic key/button state after failure.
+
+**Source:** [The1Studio InputSimulationActions.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/InputSimulation/InputSimulationActions.cs), [ManageInputSimulation.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageInputSimulation.cs), [queued pointer fix](https://github.com/The1Studio/unity-mcp/commit/04424430a7b0116fe4f71f585f9f6130f37745b1).
+
+### P2.7 Unfocused Play Mode liveness and DOTS integration
+
+**Finding:** The1Studio's RunInBackgroundPlayGuard opts into Application.runInBackground while the Editor is in Play Mode and restores the original flag at EnteredEditMode. It openly documents that crash/quit before restoration can leave ProjectSettings changed because SessionState does not persist across process exit. Its ManageDots family supplies a sizeable optional ECS suite absent from target beta.
+
+**Recommendation — INVESTIGATE guard behavior; DEFER the ECS suite to an optional package/group.** Reproduce the focus stall first, design a durable recovery/opt-out contract, and preserve PlayerSettings in normal stop/domain reload/quit paths. For DOTS, separately validate supported com.unity.entities APIs and dependency gating before adding dozens of actions.
+
+**Acceptance tests:** focused/unfocused Play Mode behavior; normal stop/user stop/script stop/domain reload; editor quit/crash recovery strategy; no unexpected ProjectSettings diff; DOTS package absent/old/modern behavior; entity count failures distinguish unreadable from actual zero. Do not copy the entire 70KB+ ManageDots implementation without a scoped feature plan.
+
+**Sources:** [RunInBackgroundPlayGuard.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Services/RunInBackgroundPlayGuard.cs), [DOTS tool](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageDots.cs), [unknown-vs-zero summary](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/EntityCountSummary.cs).
 
 ### P2.5 Release/version/source alignment
 
