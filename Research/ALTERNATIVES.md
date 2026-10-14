@@ -171,3 +171,60 @@ It wires Unity AssetDatabase calls for direct/recursive dependencies, reverse de
 **Usefulness:** Reuse the action vocabulary as a starting point, but implement conservative semantics and prove them against Unity EditMode fixtures; never automatically delete returned “unused” candidates.
 
 Further source details and acceptance-test recommendations are in [Specialist Workflow Source Review](SPECIALIST_WORKFLOWS.md).
+
+
+## 9. CoderGamester/mcp-unity: security/retry tests and the limits of Undo rollback
+
+Repository: [CoderGamester/mcp-unity](https://github.com/CoderGamester/mcp-unity), an independent implementation. Metadata snapshot: main branch; 1,930 stars, 244 forks, updated 2026-10-13; MIT license metadata. Source tree contained 245 entries.
+
+Source reviewed:
+- [McpUnitySecurityTests.cs](https://github.com/CoderGamester/mcp-unity/blob/main/Editor/Tests/McpUnitySecurityTests.cs), blob 62e5ecb199dc022d98cb641ac01f68a45fbf368a.
+- [McpUnityServerRetryTests.cs](https://github.com/CoderGamester/mcp-unity/blob/main/Editor/Tests/McpUnityServerRetryTests.cs), blob 7423fb99e986861e6bd370dfafa7ae34d2318291.
+- [PathHandlingTests.cs](https://github.com/CoderGamester/mcp-unity/blob/main/Editor/Tests/PathHandlingTests.cs), blob 7b00d664400a6e59c105a8899ba2cb8b93c5b61a.
+- [BatchExecuteTool.cs](https://github.com/CoderGamester/mcp-unity/blob/main/Editor/Tools/BatchExecuteTool.cs), blob 3abef13ac4b1da11d757cbec4a07f8b55d7644cb.
+
+### Useful patterns
+
+1. **Security behavior is tested explicitly:** tests exercise Origin validation, auth token generation/persistence/rotation, malformed token state and denial of selected package-changing tools before parameter validation when disabled. Borrow the idea of security regression tests, not necessarily its exact Origin policy without reviewing our transport topology.
+2. **Bounded retry/backoff and cleanup order:** startup retry delay is tested at boundary attempts, and failed-start cleanup is tested to stop a background tick before a null-server early return. This is a practical regression-test model for Editor/bridge lifecycle bugs.
+3. **Path matrix:** path handling tests include spaces, nonexistent paths and valid package roots. The target's existing test surface should retain equivalent platform/spacing coverage.
+4. **Batch rollback is Undo-group-based:** atomic=true starts an Undo group and calls Undo.RevertAllDownToGroup when a stop-on-error failure occurs. This is not a transaction across arbitrary tools: asset/file writes, server-side effects, external processes or actions that do not register appropriate Undo records may not roll back.
+
+### Comparison against target coverage
+
+The target already has:
+- [SafeZipExtractorTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/SafeZipExtractorTests.cs), blob e27b742d50516aa86d352e0174c3f6641bcd27b1: normal extraction, disallowed extensions, traversal rejection.
+- [ExecuteCodeTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/Tools/ExecuteCodeTests.cs), blob dc3c4e360afe9c3273c5c39a1a8ff7d716c88464: execution, compiler/runtime errors, blocklist cases for file delete/process start/infinite loop, and a test showing safety_checks=false bypasses the blocklist.
+- [BatchExecuteKeyPreservationTests.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/Tools/BatchExecuteKeyPreservationTests.cs), blob 3419dfed59655ef3b21d92e3f6c8a5a4c98e5363: verifies nested key preservation and representative batch operations.
+
+Therefore do not add duplicate smoke tests that already exist. Instead add tests around the exact gaps:
+- ZIP entry-count and expanded-byte quotas, per-entry streaming enforcement and cleanup after quota failure.
+- A server policy test proving remote/unattended callers cannot disable privileged-operation guardrails by setting a tool argument.
+- Undo rollback semantics only for a declared supported subset of operations. Every operation type must state whether it is Undo-recorded/rollback-capable; never label an arbitrary batch atomic.
+- Reconnect/failed-start liveness behavior and bounded retry semantics where target implementation lacks equivalent tests.
+
+**Disposition:** **ADAPT test design; do not port the atomic flag wholesale.** An optional Undo-group feature could be considered later only if operations expose accurate rollback capability annotations and non-Undo side effects are explicitly excluded from the guarantee.
+
+## 10. Ozymandros/Unity-MCP-Server: structured contracts and validation pipeline
+
+Repository: [Ozymandros/Unity-MCP-Server](https://github.com/Ozymandros/Unity-MCP-Server), an independent .NET MCP host and Unity bridge. Source/doc reviewed:
+- [Tool contracts and observability](https://github.com/Ozymandros/Unity-MCP-Server/blob/master/Docs/tool-contracts-and-observability.md), blob 494384edaa58c68507c1c48e497271bd3571f312.
+- [Validation pipeline and test strategy](https://github.com/Ozymandros/Unity-MCP-Server/blob/master/Docs/validation-pipeline-and-tests.md), blob aa755e39c51a4a1ad450a71e32dc826dfc40a032.
+- [PathResolverTests.cs](https://github.com/Ozymandros/Unity-MCP-Server/blob/master/UnityMcp.Tests/Application/Tools/PathResolverTests.cs), blob 768f862978e368d61d7b01bdb5474085a3b70069.
+
+Useful documented patterns:
+- Shared error categories such as validation, IO, contract and external-tool failure, plus machine-readable codes and structured diagnostics.
+- Path containment tests for URI schemes, traversal, out-of-project absolute paths, duplicate Assets segments and normal project-relative paths.
+- Composable validation stages: static/schema/path checks, Unity import/compile validation, and scenario/e2e recipes.
+
+This confirms that an explicit error taxonomy and layered validation contract can be documented even in an implementation with many tools. Our target already has structured per-tool responses and extensive tests, so the useful next step is normalizing cross-tool error codes and adding missing scenario tests—not moving the target to .NET or duplicating its validation framework. These docs are from an independent repo and do not establish runtime behavior beyond the cited source/tests.
+
+## 11. PICO XR extension: useful architecture, not reusable source
+
+Repository: [Pico-Developer/Unity-MCP-Extensions](https://github.com/Pico-Developer/Unity-MCP-Extensions). Source reviewed: [PXR_MCP_Tools.cs](https://github.com/Pico-Developer/Unity-MCP-Extensions/blob/main/Editor/Tools/PXR_MCP_Tools.cs), blob 09eed0509a670932687e60d157447a643316ee3; [haptics EditMode tests](https://github.com/Pico-Developer/Unity-MCP-Extensions/blob/main/Tests/Editor/PXR_MCP_HapticsEditorTests.cs), blob 90f1d8c95f8a8b7f98ce2cd66a1adc72614890ee.
+
+It uses action-based typed tools, small feature-block operations and a result envelope. Its haptics tests explicitly assert idempotence: attaching the same configuration twice does not create duplicate managers, and upserting effects preserves one manager.
+
+**Usefulness:** For optional XR provider integrations, test idempotent attach/upsert operations and represent unsupported runtime capability explicitly.
+
+**Hard restriction:** its C# source carries a proprietary PICO Technology notice stating reproduction is forbidden without prior written permission. Treat as reference-only; do not copy source code into Unity-MCP. Reimplement generic ideas independently and only integrate with appropriate licensed SDK/dependencies.
