@@ -217,3 +217,17 @@ The full source-level review and exact blob hashes are in [FORK_YKH09242_ASSETGE
 | [onlyfeng/unity-mcp](https://github.com/onlyfeng/unity-mcp) | beta; 52 ahead, 0 behind, 29 changed files | 20-entry identity-scoped async test status cache; cached terminal status after transient transport failures; detail-fidelity flags, degraded-response metadata and a broad regression test set. | Adapt narrowly, adding a monotonic observation-order guard for out-of-order concurrent polls. See [FORK_ONLYFENG_TEST_STATUS_CACHE.md](FORK_ONLYFENG_TEST_STATUS_CACHE.md). |
 | [haohao-0407/unity-mcp](https://github.com/haohao-0407/unity-mcp) | same compare | Additional model options are highly provider-version-sensitive. Current Meshy docs were checked separately; lowpoly is documented as retiring on 2026-10-30, so the fork's blanket pre-retirement disabling of T1/lowpoly should not be copied without a deliberate support/deprecation decision. | Validate against current official provider documentation and tests rather than treating the fork's accepted-value list as authoritative. |
 
+
+
+## L. Serraya profiler expansion (2026-10-14)
+
+[Serraya/unity-mcp:beta](https://github.com/Serraya/unity-mcp/tree/beta) is a direct fork that has merged recent upstream beta. The compare snapshot reported 1,574 commits ahead and 0 behind, with 110 changed files; this is a broad divergent history, not a clean set of 1,574 new features. The directly inspected profiler contribution is recorded in [FORK_SERRAYA_PROFILER_REVIEW.md](FORK_SERRAYA_PROFILER_REVIEW.md).
+
+Key source-level findings:
+- FrameDebuggerOps grows from roughly 11 KB in target beta to roughly 65 KB in the fork, adding event details, render-target output capture, alias-heavy reflection and bounded missing-field/warning diagnostics.
+- MarkerCalltreeOps adds a frame/thread-specific hierarchy search with row/depth/thread budgets.
+- RecordedFrameAnalysisOps adds recorded-frame summary, hot-marker aggregates, regex marker search, CSV exports and pollable analysis jobs.
+- MarkerFilterRegex applies a 1-second matching timeout; ProfilerMarkerRegexTests cover pathological regex and structured errors.
+- ProfilerJobPumpTests exercise per-job bounded progress under concurrent work.
+- Main adoption caveats: the frame-output capture allocates the full RenderTexture size and PNG buffer without an evident pixel budget, and an arbitrary output_path outside Assets can overwrite an existing file. Add a pixel/byte cap, controlled output root and explicit overwrite policy before porting. Dedicated FrameDebugger API compatibility tests were not found in the checked tree.
+
