@@ -191,3 +191,13 @@ Added [RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md](RECENT_UPSTREAM_PR_REVIEW_2026-1
 New patch-reviewed areas include #1380 (shared local HTTP server lifetime), #1459 (lazy asset-search hydration and path/page validation), #1469 and #1472 (argument normalization and dynamic tool signatures), #1455 (C# wrapper aliases and diagnostics), #1448 (optional MCP console-log filtering), #1135 (Undo-safe GameObject deletion), #1450 (fixed Game View dimensions and render-target readback), and #1464 (exact optional package versions).
 
 The review separates in-scope MCP↔Unity reliability from lower-priority Editor convenience work and records testing gaps. None of these proposals were assumed to be merged. Re-check status and compare landed code before implementation; do not duplicate a feature that has arrived in beta.
+
+
+## 9. PR #1380 lifecycle ownership re-check
+
+Patch-level review was deepened against target beta's actual PID/handshake implementation and the proposed branch. See [SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md](SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md). Two separate findings now supersede a simple “high priority to verify” note:
+
+1. The target stores global EditorPrefs handshake/tracking keys despite keeping PID files under each project's Library directory. This permits a different Editor to resolve and potentially stop the last stored managed server.
+2. PR #1380's SessionState launch marker prevents borrowed Editors from stopping an owner’s process, but can lose all cleanup ownership if the original launcher exits before the last borrower. A bounded instance-count probe also does not eliminate the attach-between-count-and-stop race.
+
+**Decision:** adapt the project/port state isolation and fail-safe unknown-count policy, but do not port the proposal unchanged. Require transfer/adoption or server-side idle cleanup plus a two-Editor lifecycle test matrix.

@@ -487,3 +487,19 @@ Official Unity API semantics recorded in the new document:
 - GetAssetDependencyHash aggregates root-dependency state, but is not sufficient by itself to invalidate reverse-reference graphs when a new dependent is added.
 
 The backlog P2.2 now specifies a dedicated read-only, paginated analyzer, explicit scope/completeness/freshness, correct depth, reverse-index invalidation, caveats for Resources/Addressables/string/runtime loads, source-byte versus build-size semantics, and graph/EditMode/performance acceptance tests. No runtime code or tests were changed/run.
+
+
+## Continued source review — shared local HTTP server ownership and shutdown (2026-10-14)
+
+Added [SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md](SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md) after comparing the target beta implementation with upstream PR #1380's patch.
+
+Verified target source:
+- **PidFileManager.cs**, blob **eca60ee2745a465c026999c92f273550601e5037**, stores PID files project-locally under the root's Library directory, but uses global EditorPrefs last-handshake/tracking keys for PID-file path, instance token, PID, port, timestamp and argument hash.
+- **ServerManagementService.cs**, blob **7a2c546cc33b5138a76474de16e09470f1658490**, reads that global handshake in StopManagedLocalHttpServer and starts StartLocalHttpServer by trying to stop an existing server before checking whether the port remains occupied. The identity check is meaningful process safety, but it is not ownership isolation between editors.
+- **McpEditorShutdownCleanupTests.cs**, blob **74bf851bd8adf94f494a64b19d91cee9a914375b**, covers the batch-mode guard; **PidFileManagerTests.cs**, blob **8b0d5350884fab1acc21bead9466a9240db3f6c4**, covers PID file and EditorPrefs helpers, not a two-Editor lifecycle.
+
+Verified the target's **/api/instances** route in [main.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/main.py#L534-L547), blob **b057f3d96c0632692fae01dd21b0be71534c087e**. The upstream PR adds project/port-scoped persistent keys, a per-Editor SessionState launch marker, and a bounded instance probe that leaves the process running for nonzero/unknown other-client counts.
+
+Critical new review finding: the PR's marker is cleared when Unity exits according to Unity's [SessionState documentation](https://docs.unity3d.com/ScriptReference/SessionState.html). If launcher A quits while borrower B is connected, A leaves the server running but loses its marker; B has no marker and won't stop the server when it exits later. Also, the count probe is not atomic with PID termination and counts by project hash, so attachment races and duplicate same-hash sessions require explicit treatment.
+
+Updated P1.6 to **ADAPT, not cherry-pick as-is**: isolate persistent process state, verify managed-process identity, separate launcher identity from cleanup rights, transfer cleanup responsibility or add server-side managed idle cleanup, and test owner-first-exit/borrower-last-exit plus attach-during-shutdown. No source code or tests were changed/run.

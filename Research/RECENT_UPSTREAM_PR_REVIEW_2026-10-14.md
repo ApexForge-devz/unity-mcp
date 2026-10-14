@@ -82,3 +82,12 @@ The result distinguishes requested dimensions, selected preset, Unity's target d
 ## Validation limits
 
 This tranche reviewed PR patch content and target source files. It did not execute Python tests, Unity EditMode/PlayMode tests, multi-Editor lifecycle tests or performance benchmarks. PR-reported test counts are not independently verified here.
+
+
+## Post-review correction — PR #1380 is not safe to cherry-pick without an ownership handoff fix
+
+A deeper source review against target PID/EditorPrefs state and Unity SessionState semantics found an important gap. PR #1380 moves the “this editor launched the server” marker into SessionState and correctly leaves the server running if other connected projects remain. But SessionState is cleared when Unity exits. If the original launcher exits first, it loses the marker; a remaining connected Editor does not have the marker and will not stop the server when it later becomes the last client. This leaves the managed headless process running indefinitely unless another cleanup path exists.
+
+The target beta has the complementary risk: PID/token state is globally stored in EditorPrefs even though PID files are project-local, so a second project may read and act on another project's valid managed-server handshake. The existing PID/token check identifies the server process but is not an ownership proof for the Editor requesting termination.
+
+Detailed code paths, alternative lifecycle design, race concerns, the /api/instances endpoint verification, and required two-Editor tests are in [SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md](SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md). Updated adoption judgment: **ADAPT, not cherry-pick as-is**. Required lifecycle tests include owner-first-exit/borrower-last-exit, attachment during shutdown, startup on another project's occupied port, external server protection and process-crash recovery.

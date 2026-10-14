@@ -130,19 +130,21 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 ### P1.6 Project-scoped endpoint/ownership and safe client configuration
 
-**Finding:** upstream PR #1285 identifies cross-project contamination from machine-global EditorPrefs for local endpoint, transport selection and server PID/port/instance token. Upstream PR #1468 identifies automatic configuration rewrites that can replace user-managed stdio executables and remove env/cwd fields. PRs #1194 and #1465 add launch-directory-based project selection and safe asynchronous refresh, respectively. These are connected operational risks but distinct subsystems.
+**Confirmed target-source risk:** target PID files are project-local under the project root's Library directory, but **PidFileManager** stores the last PID-file path, instance token, PID, port, start timestamp and process-argument hash in unscoped EditorPrefs keys. Since EditorPrefs are shared across running Unity projects for the user, another Editor can read/clear the current global handshake. The project-local PID file and token checks prevent many unrelated-process kills, but do not prove that the Editor requesting stop owns the matched valid server. **ServerManagementService.StartLocalHttpServer** also calls the stop path before checking the configured port. See [Shared HTTP server lifecycle review](SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md).
 
-**Recommendation — VERIFY / ADAPT only where the current target lacks the protections:**
-- Compare project identity/prefs implementation and connection manager against PR #1285 before making a second scoping framework.
-- Treat generated client config as user-owned state. Preserve custom commands/env/cwd/unrelated fields by default; make destructive “regenerate” an explicit operation.
-- When several Unity Editors are open, use explicit project/launch-directory identity where the client exposes it; fail closed if matching is ambiguous.
-- Keep filesystem/process/network work off the Editor main thread with coalescing/cache and stale-result protection, while all Unity UI work remains on the main thread.
+**Upstream #1380 disposition — ADAPT, not cherry-pick as-is:** its per-project/per-port keys, per-process launch marker and bounded instance probe improve ownership isolation. But its launch marker uses SessionState, which Unity clears on Editor exit. If owner A exits while B is connected, A leaves the server running and then loses the only launch marker; B later exits without being able to stop the server. The PR also checks instance count and stops in separate operations, leaving a check/stop race. Do not call the lifecycle fixed until those cases have a tested resolution.
 
-**Acceptance tests:** two projects with different HTTP endpoints/PIDs; two linked Git worktrees with identical project names; process restart/domain reload; config custom launcher/env/cwd preserved through checks/migration; malformed JSON and args shape do not trigger rewrite; worker completion after settings change/window close cannot update stale UI; ambiguous roots prompt rather than selecting randomly; per-principal/project/session cache isolation.
+**Recommendation — VERIFY / ADAPT:**
+- Namespace persistent PID/token/port state by a stable project identity and port; cleanup must clear only the state associated with the stopped server.
+- Verify that the process is a Unity-managed MCP server using PID/port plus launch token/argument fingerprint; never terminate an unrelated listener based only on port or a name heuristic.
+- Separate “this Editor launched it” from “this Editor is currently allowed to request safe last-client cleanup.” If a launcher exits while borrowers remain, transfer an adoptable cleanup lease or let a managed server perform bounded idle cleanup after all Unity clients are gone.
+- Make shutdown behavior explicit for a server already used by another Editor: refuse to take it over, deliberately reuse it, or coordinate a safe drain; do not silently kill it during startup.
+- Treat malformed/timeout/unavailable connected-instance count as unknown and leave the server running. Resolve the non-atomic attach-vs-stop race or explicitly constrain/test the transition.
+- Preserve user-owned client configuration and the existing project/instance selection protections; do not build a second identity/preferences registry if the current abstractions can be corrected narrowly.
 
-**Sources:** [PR #1285 project-scoped ownership](https://github.com/CoplayDev/unity-mcp/pull/1285), [PR #1468 preserve manual stdio config](https://github.com/CoplayDev/unity-mcp/pull/1468), [PR #1194 launch-dir auto-selection](https://github.com/CoplayDev/unity-mcp/pull/1194), [PR #1465 async focus refresh](https://github.com/CoplayDev/unity-mcp/pull/1465).
+**Acceptance tests:** two projects/different ports; shared server where borrower quits first; shared server where original owner quits first and borrower quits last; attach during shutdown; startup while another project's server uses the same port; invalid/timeout probe; external listener/server; stale/reused PID and wrong token; process crash; domain reload; moved project/same-name worktrees; config custom launcher/env/cwd preserved. Require unit tests plus actual local HTTP and two-live-Editor integration tests.
 
-
+**Sources:** [Shared HTTP server lifecycle review](SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md), target [ServerManagementService.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/ServerManagementService.cs), [PidFileManager.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/Server/PidFileManager.cs), [PR #1380](https://github.com/CoplayDev/unity-mcp/pull/1380), [PR #1285 project-scoped ownership](https://github.com/CoplayDev/unity-mcp/pull/1285), [PR #1468 preserve manual stdio config](https://github.com/CoplayDev/unity-mcp/pull/1468), [PR #1194 launch-dir auto-selection](https://github.com/CoplayDev/unity-mcp/pull/1194).
 
 ### P1.7 Make tool-schema compaction warning-preserving and measurable
 
