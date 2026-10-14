@@ -24,6 +24,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Expand the candidate register with additional fork searches and specialist repositories.
 - [x] Deepen source-level checks of Frame Debugger, Memory Profiler, and asset dependency analysis.
 - [x] Record remaining limitations, commits and next actions in a dated research log.
+- [x] Cross-check the target's open draft PR against relevant upstream PRs and current GitHub Actions results.
 - [ ] Enumerate and classify direct forks of the target/upstream using a reproducible complete listing.
 - [ ] Systematically review meaningful forks-of-forks and all fork candidates with ahead-of-upstream code.
 - [ ] Diff the high-value candidates file-by-file and map changes to all corresponding target handlers/tests.
@@ -45,6 +46,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Specialist workflow source review](SPECIALIST_WORKFLOWS.md)
 - [MCP modern/legacy protocol compatibility plan](PROTOCOL_COMPATIBILITY.md)
 - [Upstream branch, issue and PR tracking](UPSTREAM_BRANCH_COMPARISON.md)
+- [Existing draft PR and upstream overlap](DRAFT_PR_AND_UPSTREAM_OVERLAP.md)
 
 ## Important interpretation rules
 
