@@ -208,6 +208,24 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Evidence:** [Modal Liveness Review](DRAFT_PR_MODAL_LIVENESS_REVIEW.md), [ModalDialogProbe.cs](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/MCPForUnity/Editor/Helpers/ModalDialogProbe.cs), [SceneExternalChangeGuard.cs](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/MCPForUnity/Editor/Helpers/SceneExternalChangeGuard.cs), [answer_dialog.py](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/Server/src/services/tools/answer_dialog.py).
 
+
+
+### P1.9 Persist billable provider checkpoints and never replay an unknown submission
+
+**Finding:** Target AssetGen job snapshots are persisted to SessionState, but the inspected target manager has no Meshy-specific durable disk journal or explicit preview/refine checkpoint. The direct fork [haohao-0407/unity-mcp](https://github.com/haohao-0407/unity-mcp) adds an atomic journal, confirmed provider task IDs, a submission-pending state, explicit resume/attach actions and a real domain-reload test. If the Editor reloads or the response is lost after a paid POST, the system must distinguish an unknown submission outcome from a confirmed remote task.
+
+**Recommendation — ADAPT the invariant into the existing job manager:**
+- Persist a “submission pending / outcome unknown” marker before sending any non-idempotent billable request.
+- Only mark the task recoverable once a confirmed remote task ID and the state needed to poll/refine/import have been durably stored.
+- If a reload occurs while a POST is pending and no task ID was received, **do not automatically resubmit**. Surface the uncertain outcome and offer only an explicit reconciliation/attach flow if the provider supports one.
+- Save the root preview ID and follow-up refine ID separately, checkpointing the refine ID before polling it. Reconstruct the adapter from recorded non-secret parameters.
+- Keep API keys, Authorization headers, signed artifact URLs and raw secret-bearing payloads out of journals/logs. Bound retention and clean up terminal journal entries carefully.
+- Expose status/list/resume operations consistently in the Python MCP schema only after the Editor handler's resume contract is tested.
+
+**Acceptance tests:** timeout while POST is pending; reload immediately before and after POST response; explicit one-POST assertion after actual domain reload; preview success/refine submit; reload during refine; timeout with known task ID followed by explicit resume; cancellation never auto-resumes; corrupted/unreadable journal; atomic replacement failure; Library read-only; provider key is absent from every serialized record; restart cleans or bounds stale journal files.
+
+**Evidence:** [haohao Meshy recovery review](FORK_HAOHAO_MESHY_RECOVERY.md), [MeshyRecoveryTests.cs](https://github.com/haohao-0407/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/MeshyRecoveryTests.cs), [MeshyDomainReloadTests.cs](https://github.com/haohao-0407/unity-mcp/blob/beta/TestProjects/UnityMCPTests/Assets/Tests/EditMode/AssetGen/MeshyDomainReloadTests.cs).
+
 ## P2 — Reliability and high-value domain work
 
 ### P2.1 Editor main-thread liveness and retry safety
@@ -395,6 +413,24 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 **Acceptance tests:** queue count/byte cap, flood during modal stall, FIFO under slicing, no concurrent Unity API execution, cancel before start, cancel during active handler, disconnect cleanup, domain reload with queued commands, one slow command plus many fast commands, queue age observability, and no duplicate side effects when a client times out and polls.
 
 **Source references:** target [TransportCommandDispatcher.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/Transport/TransportCommandDispatcher.cs), target [TestJobManager.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/TestJobManager.cs), and [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md).
+
+
+
+### P2.16 Return identity-scoped cached test outcomes during transient transport stalls
+
+**Finding:** target Server/src/services/tools/run_tests.py has async test jobs and focus-nudge state, but the inspected version has no bounded cache of the last test-job status snapshots. [onlyfeng/unity-mcp](https://github.com/onlyfeng/unity-mcp) adds a 20-entry LRU keyed by transport mode, user, Unity instance and job ID; cached terminal state can be returned after a transient poll timeout instead of misreporting the result as unknown. It records whether a snapshot contains all results or only failed/skipped details and does not claim a low-detail terminal snapshot satisfies a higher-detail request.
+
+**Recommendation — ADAPT the result-resilience contract with a monotonicity fix:**
+- Cache only normalized test-job snapshots, bounded by item count and with observation timestamps.
+- Use the authenticated caller + target Unity instance in the key, not only the job ID.
+- Cache fallback is permitted only for transient transport/timeout failures. Invalid IDs and real test/tool errors must remain errors.
+- Mark fallback responses degraded/stale, including cache age and the latest transport error. Never present a cached running state as live.
+- Preserve detail fidelity for include_details/include_failed_tests. A richer terminal snapshot must not be overwritten by a lower-detail snapshot.
+- Add an observation revision/order so an old in-flight poll cannot overwrite a newer terminal result. The fork's cache write path does not pass the poll observation order to its remember function, so this race remains a test gap even in the fork.
+
+**Acceptance tests:** transient and non-transient failures; no cache; terminal cache returns immediately; wait loop retries transient failure; detail fidelity; user and instance isolation; reconnect under same instance; LRU eviction; stale/degraded diagnostics; simultaneous polls with older-running response arriving after newer-terminal response; test IDs never reused across instance scopes.
+
+**Evidence:** [onlyfeng test-cache review](FORK_ONLYFENG_TEST_STATUS_CACHE.md), [run_tests.py](https://github.com/onlyfeng/unity-mcp/blob/beta/Server/src/services/tools/run_tests.py), [test_run_tests_async.py](https://github.com/onlyfeng/unity-mcp/blob/beta/Server/tests/integration/test_run_tests_async.py).
 
 ## P3 — Conditional / benchmark-driven enhancements
 
