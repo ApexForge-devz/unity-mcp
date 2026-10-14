@@ -161,3 +161,75 @@ In the CoplayDev-focused candidates whose history could be compared successfully
 The third repo with a nonzero ahead count, adrnsyhsdq-debug, adds only personal notes and setup-log files. Multiple other repos are stale mirrors. Pashara's Frame Debugger and SabriBoughanmi's Memory Profiler are valuable specialist derivatives, but they are not counted as direct forks of the current target absent ancestry evidence.
 
 This is a meaningful source comparison of the available candidate set, **not exhaustive coverage of all 1,553 upstream forks**. The inaccessible complete fork-list endpoint remains the main coverage blocker.
+
+
+## 10. The1Studio/unity-mcp — broad divergence with several high-value correctness patterns
+
+Repository: [The1Studio/unity-mcp](https://github.com/The1Studio/unity-mcp), default branch `beta`.
+
+**Compare result:** `The1Studio:beta` is **163 commits ahead and 529 behind** `CoplayDev:beta`, with 300 changed files in the compare response. It is therefore a broad, very stale downstream fork, not a candidate for wholesale merging. The most useful changes are specific fixes with a reproducible failure mode and focused tests.
+
+### 10.1 Checked serialization writes: don't report success after narrowing to zero
+
+Source evidence:
+- [The1Studio ParamCoercion.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/ParamCoercion.cs), blob `5d160ca20f0c9cd949f8075138b55f4d6eef6d00`.
+- [The1Studio ComponentOps.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/ComponentOps.cs), blob `d644297208790496e4735cef1ca41b9e36fc9d74`.
+- [Original correctness fix commit](https://github.com/The1Studio/unity-mcp/commit/970ac29098b4b836cd6de596043f5f92aecf508f), August 11, 2026.
+
+The fork adds `TryCoerceInt` / `TryCoerceLong`, returning success plus an actionable error instead of silently returning a default. Its integer `SerializedProperty` path uses these checked helpers before writing. The commit describes reproducible cases where a large LayerMask bit pattern was narrowed/defaulted to 0 and the MCP operation returned success; it also addresses boxed-struct write-back and verifies selected reflection writes by reading the field back.
+
+The target's current `ComponentOps.SetSerializedPropertyRecursive` does an initial broad parse check and then calls `ParamCoercion.CoerceInt(value, 0)` / `CoerceLong(value, 0)`; the current target `ParamCoercion` returns the configured default when overflow or parse errors are caught. Its current component test paths cover native backing fields and UnityEvent behavior, but the sampled target tree has no standalone `TryCoerceInt` regression-test file. This is a **verified code-path difference**, not a claim that every integer assignment currently fails.
+
+**Disposition: ADAPT (high priority).** Introduce checked coercion for write paths where success must mean the serialized value was applied, while retaining permissive/defaulting coercion for read-only/optional parameters where that behavior is intentional. Add boundary tests for `int.MinValue`, `int.MaxValue`, just-outside bounds, `long` bounds, very large JSON integers, invalid strings, and LayerMask bit patterns. For reflection paths with value-type intermediates, test write-back/readback instead of assuming `SetValue` mutated the original parent struct.
+
+The upstream fork commit itself says it could not compile/run Unity locally; treat its regression tests as evidence of intended behavior and validate in the target CI/Editor before adopting.
+
+### 10.2 Vector and struct SerializedProperty writes
+
+[The1Studio commit #83](https://github.com/The1Studio/unity-mcp/commit/64279d6db40c46d2ffefebc1285b3fbbb5ddc59e) extends `ComponentOps.SetSerializedPropertyRecursive` for Vector2/3/4, Quaternion, Color, Rect, Bounds and AnimationCurve, using the shared vector parsing logic. It adds tests for object and array forms such as RectTransform `m_AnchorMin`, `m_AnchorMax`, `m_SizeDelta`, and `m_Pivot`.
+
+The current target switch inspected in `ComponentOps.cs` handles Integer, Boolean, Float, String, Enum and ObjectReference before returning an unsupported-type error for other SerializedProperty leaves. The target already supports some component reflection/native-field writes, so this is specifically a **SerializedProperty fallback coverage gap**, not a missing component write system overall.
+
+**Disposition: ADAPT.** Use one shared parser for values accepted through both reflection and SerializedProperty paths. Add tests for each supported value shape, unsupported values, round-trip persistence and unchanged values on failure. Review Unity-version support for each serialized type.
+
+### 10.3 Input simulation as an optional Play Mode testing group
+
+Unique files present in The1Studio's tree but absent from the target beta tree:
+- [ManageInputSimulation.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageInputSimulation.cs), blob `1995f4b39cbbc674c3337f6cb6df2378d6201d7f`.
+- [InputSimulationActions.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/InputSimulation/InputSimulationActions.cs), blob `237c2839f59968d572da01f2419b1c5945a9e0b1`.
+- [InputTargetResolver.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/InputSimulation/InputTargetResolver.cs), blob `7c75076f7c7df448952151a6a83f81684c943348`.
+- [InputSimulationFocusGuard.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/InputSimulation/InputSimulationFocusGuard.cs), blob `6b7c4a969ac27b6c0e58ef31465afffee8f22725`.
+- [InputSimulationSequence.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/InputSimulation/InputSimulationSequence.cs), blob `162bcaad3befc32b7ec50649b5f640de940b8078`.
+- Related runtime bridge and touch/discovery/focus helpers are in the fork tree, along with a `testing`-group tool registration.
+
+The actions include UI/target discovery, coordinate/GameObject/UI-element/anchor targeting, click/double click, drag, scroll, key presses/combos, text entry, touch gestures, bounded sequences and status polling. This is a meaningful capability for automating game UI and Play Mode task validation.
+
+A particularly useful correction in [commit #126](https://github.com/The1Studio/unity-mcp/commit/04424430a7b0116fe4f71f585f9f6130f37745b1) replaces pointer-position/scroll writes through `InputState.Change` with queued Input System state events. The commit explains that an Editor-update call could write to the Editor update buffer while the running game read the player buffer, causing interactions to land at (0,0). A companion focus guard warns when Unity or the Game View lacks focus rather than claiming that the game consumed the event.
+
+**Disposition: INVESTIGATE as an optional testing capability.** Do not transplant the entire stale implementation. First decide which Input System versions must be supported, test old Input Manager vs new Input System behavior, inspect touch/sequence cancellation, verify focused/unfocused Game View behavior, and prove game-facing events are observed by a running project. The result should distinguish “event was queued” from “the application reacted.”
+
+### 10.4 Run-in-background and Play Mode recovery
+
+[RunInBackgroundPlayGuard.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Services/RunInBackgroundPlayGuard.cs), blob `bb44be1e1e5734e49c9475a4305a96420dfa3a3a`, is absent from the target beta tree. It temporarily enables `Application.runInBackground` on `manage_editor(action="play")` and restores the original value on the first `EnteredEditMode` transition, retaining the state via `SessionState` across normal play-mode domain reload.
+
+The commit documents a material accepted gap: if the Editor crashes/quits while the guard remains active, `SessionState` is lost and no project-local recovery marker remains. Since `Application.runInBackground` writes through to PlayerSettings, abnormal exit can leave a tracked project setting changed.
+
+**Disposition: INVESTIGATE, not unconditional adoption.** First reproduce the unfocused Game View symptom, then design durable cleanup and explicit opt-out/default behavior. A guard must preserve the prior project setting after normal stop, script-driven stop, domain reload and Editor shutdown; avoid hiding genuine application-lifecycle errors by permanently enabling background execution.
+
+### 10.5 DOTS/ECS tools and the “unknown is not zero” result rule
+
+The fork adds `ManageDots.cs` plus graphics/physics/subscene modules and Python/CLI wrappers. This exposes ECS worlds, entity/component queries, managed and unmanaged systems, archetypes, component writes and rendering/physics/subscene workflows. Those files are absent from the target beta tree; the package is a separate, specialized integration for projects that use Unity Entities/DOTS.
+
+**Disposition: DEFER / OPTIONAL MODULE.** The feature area could be valuable for ECS-heavy game projects, but scope and compatibility costs are high. Keep it isolated and dependency-gated; add representative Unity.Entities version-matrix tests before porting.
+
+More generally, [EntityCountSummary.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/EntityCountSummary.cs), blob `2ad420b854752796880e4f0a65da14dd966bbe23d`, demonstrates a useful cross-domain contract: a failed component-type lookup must produce an unreadable/null count plus diagnostics, not a plausible `0`. Its tests explicitly distinguish unreadable from a genuine empty world. This principle applies to all MCP snapshots and validation outputs even if DOTS tools are not adopted.
+
+### 10.6 Fork synchronization skill
+
+[The1Studio fork-sync skill](https://github.com/The1Studio/unity-mcp/blob/beta/.claude/skills/fork-sync/SKILL.md), blob `0705ad4e5f0d9ab0fe7ffef0caae8408985fa8da`, formalizes clean-tree checks, upstream remote validation, fetched branch comparison, merge-base ahead/behind counts, overlapping changed-file lists, and explicit status/sync/diff/cherry-pick flows. It instructs contributors to stop rather than overwrite dirty work and keep studio-specific tools in separate files.
+
+**Disposition: ADAPT as workflow documentation, not runtime code.** This is a strong practice for maintaining a long-lived fork and applies to the research branch's later feature-adoption phase.
+
+### Summary judgment
+
+The1Studio is one of the most useful upstream-derived candidates found so far despite being 529 commits behind. Its top transferable ideas are checked writes/readback verification, broader SerializedProperty type handling, optional deterministic Play Mode input simulation, and explicit unknown-vs-zero diagnostics. Server-sharing and editor shutdown ideas should be compared to the target's already-existing instance/auth/ownership controls before any port.
