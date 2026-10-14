@@ -231,3 +231,40 @@ Therefore, CI does establish Python, compile-only and docs evidence; it does **n
 
 Fetched the current first page of open upstream PRs and added it to [UPSTREAM_BRANCH_COMPARISON.md](UPSTREAM_BRANCH_COMPARISON.md), including #1472 custom-tool registration, #1468 user config preservation, #1465 Editor focus-refresh threading, #1463 Play Mode readiness, #1462 prefab overrides, #1461 custom instructions, #1460 test cleanup, and earlier #1459/#1417/#1350 overlap. Each item remains a snapshot and must be rechecked before implementation.
 
+
+
+## Continued research tranche — The1Studio fork and operation facade (2026-10-14)
+
+### New source-level fork comparison: The1Studio
+
+- GitHub compare for The1Studio/unity-mcp beta versus CoplayDev beta reports 163 commits ahead, 529 behind and 300 changed files. It is a broad but stale upstream-derived branch, not a candidate for merging wholesale.
+- Added a detailed record to [FORK_COMPARISONS.md](FORK_COMPARISONS.md) and a register entry to [FORK_CANDIDATE_REGISTER.md](FORK_CANDIDATE_REGISTER.md).
+- Most actionable code-level finding: target beta's ComponentOps integer SerializedProperty path checks that the value looks numeric but then uses CoerceInt/CoerceLong fallback defaults. The1Studio commit [970ac290](https://github.com/The1Studio/unity-mcp/commit/970ac29098b4b836cd6de596043f5f92aecf508f) adds TryCoerceInt/TryCoerceLong and changes mutation paths to report overflow/unparseable input rather than silently writing a default (notably large LayerMask values). It also tests write-back/readback paths for value-type intermediate properties. This is a concrete data-integrity candidate for the target.
+- The1Studio commit [64279d6](https://github.com/The1Studio/unity-mcp/commit/64279d6db40c46d2ffefebc1285b3fbbb5ddc59e) adds Vector2/3/4, Quaternion, Color, Rect, Bounds and AnimationCurve SerializedProperty support plus object/array form tests. The current target switch rejects some of those leaves as unsupported even though other component reflection/native-field support exists.
+- Other useful optional ideas: Play Mode input simulation with focus warnings and queued Input System state events (commit [0442443](https://github.com/The1Studio/unity-mcp/commit/04424430a7b0116fe4f71f585f9f6130f37745b1)); RunInBackgroundPlayGuard (which explicitly documents a crash/quit restore gap); DOTS/ECS tools; and a fork-sync skill that mandates clean-tree/fetch/merge-base/conflict checks.
+- Target already has guarded HTTP shutdown ownership, so the similar The1Studio shutdown fix is not a new feature to port. The source review explicitly keeps the ECS package optional and does not suggest importing the 70KB+ ManageDots implementation wholesale.
+
+### Independent facade: Vangardo/unity-mcp-efficient
+
+- Reviewed a 53-entry repository tree, README, operation catalog, response compactor, SQLite/in-memory TTL result store, backend adapter, workflow primitives, benchmark scripts and tests. Added detailed source/risk analysis to [ALTERNATIVES.md](ALTERNATIVES.md).
+- Its six-tool surface and operation-level catalog (377 indexed operations reported against upstream v10.1.0), structured output compaction, result IDs, JSON Pointer/offset pagination and declarative workflows are high-value design references for context efficiency.
+- The published README says schema character count dropped from 93,119 to 3,657 (96.07%) and a synthetic hierarchy response from 628,110 to 875 chars (99.86%). BENCHMARKS.md and its scripts were inspected; character/token estimates use 4 chars/token and the hierarchy case is synthetic. These measurements have not been reproduced here and use an older v10.1.0 catalog.
+- Risks identified for evaluation, not asserted as exploitable vulnerabilities: static action allowlists can drift; the retrieval test set is small; all call_operation calls share conservative destructive annotations; stored result/request IDs are not visibly bound to caller/session/project in sampled routes; duplicate mutation suppression is tested sequentially but the read-execute-record flow may race under concurrent requests; and one oversized compressed result can exceed the store's nominal byte cap. Raw values are materialized before compaction.
+- The recommendation is to benchmark small internal adoptions against the target draft PR #1 schema compaction, not require a second MCP server by default.
+
+### Search coverage expansion
+
+Additional GitHub repository-search queries:
+- `unity-mcp fork:only` pages 1–3 (100 results each);
+- `MCPForUnity fork:only` pages 1–2 (zero matches for the exact query);
+- `CoplayDev fork:only` page 1 (15 results);
+- `MCP for Unity fork:only` page 1;
+- `unity-mcp in:readme CoplayDev fork:true` page 1.
+
+Newly checked compare results include Scriptwonder (identical), TigerHix (674 commits behind, no ahead delta), chanqueenieolivia-ui (529 behind, no ahead delta), nathanandrewturner (685 behind), RealAgentMoulder (345 behind), paopaolaowang (1,385 behind), ZhangJiaLong90524 (identical) and RasputinKaiser (1,969 behind). These are stale/mirror evidence on the compared refs, not proof their non-default branches have no differences.
+
+Tried the GitHub forks HTML path through the browsing tool as well; it returned a restricted-URL fetch failure. Thus the authoritative 1,553-item inventory remains unavailable and the audit is still explicitly incomplete.
+
+### Current branch status
+
+Research branch remains docs-only. No Unity runtime/build/test, Python test suite, live facade benchmark, or MCP integration benchmark was run in this tranche. Existing PR #1 CI status (Python/compile/docs pass; Unity test and live E2E jobs skipped for lack of license secrets) is still the latest inspected validation state; recheck it before merging that implementation branch.
