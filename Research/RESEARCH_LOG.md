@@ -370,3 +370,25 @@ New docs/backlog commits in this tranche:
 - `c0791513b1c32f966324561ebe1b0d104b20785f` — explicit target job/dispatcher comparison.
 
 No Unity tests or runtime benchmarks were run during this source-only tranche.
+
+
+## Continued source review — ykh09242 AssetGen security and lifetime tests (2026-10-14)
+
+Added [FORK_YKH09242_ASSETGEN_SECURITY.md](FORK_YKH09242_ASSETGEN_SECURITY.md), a detailed path-by-path source review of ykh09242/unity-mcp:beta. This is a confirmed direct fork, but its large compare-ahead count includes unrelated web/agent task files; the adoption decision is limited to Unity-specific AssetGen paths.
+
+Directly verified deltas:
+- `HttpRequestSpec.DownloadProvider` marks artifact downloads explicitly, and `AssetGenJobManager` passes the provider on the artifact-download phase.
+- `UnityWebRequestTransport` routes artifacts to a dedicated transport, and ordinary provider API responses use a `BoundedDownloadHandler` with 32 MiB cap. The target currently lacks that distinction in `HttpRequestSpec` and its inspected UnityWebRequest transport uses `DownloadHandlerBuffer`.
+- `AssetDownloadPolicy` uses HTTPS/443, provider-specific exact hosts/suffixes, public IP checks for the whole DNS answer set and safe errors that don't echo signed URLs/credentials.
+- `AssetDownloadTransport` manually validates every redirect, connects using an IP literal while retaining Host/TLS verification, caps artifact bodies to 512 MiB, limits redirects and applies a two-minute deadline. This is a valuable architecture candidate but its TLS/SNI/Host behavior still needs tests on Unity's actual runtime profiles.
+- `ZipMetadataPreflight` validates EOCD/central-directory/ZIP64 bounds before `ZipArchive` allocation. The fork's `SafeZipExtractor` then caps 4,096 entries, 512 MiB per entry, 2 GiB total and 200:1 expansion ratio, checks streamed bytes and deletes files created by this extraction on failure. Target only has existing path containment and optional extension filtering in the inspected ZIP code.
+- New security tests cover rejected provider URL variants and non-public DNS answers, false/absent Content-Length, oversized streamed bodies, malformed ZIP metadata/ZIP64, expansion budgets, cancellation and partial-file cleanup.
+- New lifetime tests use WeakReference/GC checks to assert large request/provider/download payloads are not pinned after tasks are consumed or cancelled, while incomplete tasks still retain required data.
+
+Backlog changes:
+- Expanded P0.3 to cover ZIP metadata preflight as well as decompression quotas.
+- Added P0.4 for artifact SSRF controls, outbound redirects, API and artifact byte limits, provider-host verification and cross-runtime TLS validation.
+- Added the fork to the candidate register with the explicit warning not to merge its broad divergent branch.
+- Added the detailed source-review link to README.
+
+No runtime changes, Unity tests, DNS/provider network checks or benchmarks were performed in this tranche.
