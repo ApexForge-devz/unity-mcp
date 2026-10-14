@@ -167,6 +167,25 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Evidence:** [Draft schema compaction source review](DRAFT_PR_CODE_REVIEW.md), [tool_schema_optimizer.py](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/Server/src/services/tool_schema_optimizer.py), [schema optimizer tests](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/Server/tests/test_tool_schema_optimizer.py), [protocol compatibility plan](PROTOCOL_COMPATIBILITY.md).
 
+
+
+### P1.8 Make modal recovery identity-bound and backpressure-aware
+
+**Finding:** target draft PR #1 adds a Windows modal liveness sampler and an out-of-band answer path. The sampler uses the Editor main-thread heartbeat, a capped background window scan and SendMessageTimeout; it reports native Win32 dialogs as answerable only when buttons were discovered, and verifies that the original HWND closes after PostMessage(BM_CLICK). Current answer_dialog parameters allow expect_title to be omitted, and dispatcher admission has no obvious hard queue cap in the reviewed code. The scene-change guard compares only file modification time.
+
+**Recommendation — VALIDATE AND TIGHTEN BEFORE MERGE:**
+- Require an expected dialog identity for button presses. Prefer an opaque short-lived ID bound to title plus handle/button-set observations; at minimum require expect_title rather than treating it as optional. Never blindly press a generic button on a different dialog that appeared after the model read the previous snapshot.
+- Return “original modal closed” separately from “the underlying operation succeeded.” If another modal appears after the click, report its presence and ask for another inspection.
+- Bound queued command admission by count and serialized bytes while the main thread is stalled. Preserve single-command ownership until an active handler really finishes, even when its caller times out.
+- Strengthen scene-file change detection beyond strict mtime-increased checks where reliable detection is required; preserve conservative unknown behavior when a file cannot be read.
+- Clearly document that auto may reload a single clean changed scene, reload prefers disk, and keep_editor overwrites disk with in-memory state. Require explicit selection when this can lose data.
+
+**Acceptance tests:** stale/changed dialog identity; same-title or generic-button second dialog; overlapping answers; click accepted but dialog persists; next modal appears; queue count/byte limit and cancellation cleanup; main thread resumes while old request remains; unchanged/older mtime content replacement; changed mtime during several open scenes; inaccessible scene file; Windows native dialog + Unity-drawn modal on actual Editor, plus graceful non-Windows unknown/unsupported behavior.
+
+**Merge gate:** compile-only checks and mocked/EditMode routing tests are insufficient. The feature needs an actual Windows Unity Editor test and the live bridge smoke job. In the last observed PR #1 run, the Unity tests and E2E jobs were skipped due missing license secrets.
+
+**Evidence:** [Modal Liveness Review](DRAFT_PR_MODAL_LIVENESS_REVIEW.md), [ModalDialogProbe.cs](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/MCPForUnity/Editor/Helpers/ModalDialogProbe.cs), [SceneExternalChangeGuard.cs](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/MCPForUnity/Editor/Helpers/SceneExternalChangeGuard.cs), [answer_dialog.py](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/Server/src/services/tools/answer_dialog.py).
+
 ## P2 — Reliability and high-value domain work
 
 ### P2.1 Editor main-thread liveness and retry safety
