@@ -406,3 +406,22 @@ Added:
 Current Meshy docs were also inspected through official docs pages: the image-to-3D API exposes the model/geometry/texture/topology/target-format fields used by the typed options layer, but documents lowpoly as retiring on **2026-10-30**. Since this research snapshot is **2026-10-14**, the fork's current choice to disable T1/lowpoly in advance of the announced date is a product policy, not a fact that should be silently copied. Official sources: [Meshy Image-to-3D API](https://docs.meshy.ai/en/api/image-to-3d), [Meshy API Changelog](https://docs.meshy.ai/en/api/changelog), [Meshy API Quickstart](https://docs.meshy.ai/en/api/quick-start). Provider-host allowlist domains and real response redirects still need separate verification before adapting the ykh downloader.
 
 No runtime code or tests were changed/run. This work remains source review and backlog synthesis.
+
+
+## Continued fork source review — Serraya profiler expansion (2026-10-14)
+
+Added [FORK_SERRAYA_PROFILER_REVIEW.md](FORK_SERRAYA_PROFILER_REVIEW.md) and linked it from the backlog/register/README.
+
+Verified source changes:
+- FrameDebuggerOps expands from target's roughly 11 KB/three actions to a roughly 65 KB implementation supporting per-event detail, shader-property inspection, render-target output, paging, alias-based reflection and field-level missing/warning diagnostics.
+- MarkerCalltreeOps reads a recorded hierarchy with explicit max depth/rows/thread scan caps; recorded profiler analysis adds frame timing summaries, hot markers, marker search, CSV exports and async status/cancel jobs.
+- MarkerFilterRegex applies a 1-second timeout to user-controlled regex; ProfilerMarkerRegexTests cover pathological patterns and structured failure.
+- ProfilerJobPumpTests check that multiple slow jobs each make progress within one pump instead of starving behind one shared deadline.
+
+Review concerns:
+- CaptureEventOutput checks positive width/height but allocates a full Texture2D and PNG, without an evident max pixel/encoded-byte bound in the reviewed branch. This can create large transient allocations on high-resolution RenderTextures.
+- It rejects custom output paths under Assets, but outside Assets permits arbitrary absolute paths and uses File.WriteAllBytes; an existing .png can be overwritten. Recommend a controlled default output root and explicit overwrite/CreateNew policy.
+- Dedicated new test files found in the fork tree include ProfilerJobPumpTests.cs and ProfilerMarkerRegexTests.cs, but no comparable direct FrameDebugger extraction/capture contract test. Reflection aliases and output capture need a Unity-version live matrix before adoption.
+- Existing backlog P2.3 now includes this fork as a richer capability lead while keeping the earlier pashara path separate. Do not copy the entire large file blindly; port by contract.
+
+No Unity test or live capture was executed by this research session.
