@@ -150,6 +150,23 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Sources:** [PR #1285 project-scoped ownership](https://github.com/CoplayDev/unity-mcp/pull/1285), [PR #1468 preserve manual stdio config](https://github.com/CoplayDev/unity-mcp/pull/1468), [PR #1194 launch-dir auto-selection](https://github.com/CoplayDev/unity-mcp/pull/1194), [PR #1465 async focus refresh](https://github.com/CoplayDev/unity-mcp/pull/1465).
 
+
+
+### P1.7 Make tool-schema compaction warning-preserving and measurable
+
+**Finding:** target draft PR #1 shortens tool descriptions to 220 characters and schema description fields to 140 using a normalized prefix with word-boundary truncation. The copy-on-list behavior preserves registered definitions and structural schema constraints, and get_tool_details returns the full registered metadata. However, the test fixture verifies structure only; no whole-catalog token report or task-success study has been reproduced. Truncating prose can remove warnings/preconditions at the tail while leaving the JSON schema unchanged.
+
+**Recommendation — ADAPT the draft rather than reject compaction:**
+- Use curated short summaries for high-risk tools where possible, rather than truncating arbitrary long descriptions.
+- Preserve key destructive-operation warnings, path constraints, required follow-up/refresh steps, version limitations and error-recovery hints. Include an explicit details-lookup hint whenever full description is omitted.
+- Measure actual tool-list serialized bytes and client/model tokenizer tokens on identical beta/draft schemas; keep chars/4 only as an approximate metric.
+- Benchmark schema compaction independently from core-first group visibility, and compare with operation-level catalog designs only on the same underlying tool version.
+- Retain exact tool metadata/annotations and keep get_tool_details read-only; retrieving details must never enable a group or authorize invocation.
+
+**Acceptance tests:** deterministic whole-catalog schema snapshots; short/long descriptions; warnings at start/middle/end; code paths/URLs/abbreviations/multilingual descriptions; descriptions with multiple paragraphs; all schema keys/required/defaults/enums/bounds/output schema and annotations preserved; hidden group details lookup does not change tool visibility; actual token counts and retrieval/task success on representative Unity tasks; modern and legacy tool-list protocol matrix.
+
+**Evidence:** [Draft schema compaction source review](DRAFT_PR_CODE_REVIEW.md), [tool_schema_optimizer.py](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/Server/src/services/tool_schema_optimizer.py), [schema optimizer tests](https://github.com/ApexForge-devz/unity-mcp/blob/feature/unity6-enhancements/Server/tests/test_tool_schema_optimizer.py), [protocol compatibility plan](PROTOCOL_COMPATIBILITY.md).
+
 ## P2 — Reliability and high-value domain work
 
 ### P2.1 Editor main-thread liveness and retry safety
