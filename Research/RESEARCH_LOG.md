@@ -197,3 +197,37 @@ Selected source commits include:
 This branch is a substantial source-informed research tranche, **not yet an exhaustive inventory of all direct forks**. The upstream repo metadata returned 1,553 forks. Repository-search pages and candidate-by-candidate compares cannot prove coverage of all 1,553. The available GitHub connection rejects the canonical forks-list endpoint, the public forks page is not retrievable through the browsing path, and direct network DNS is unavailable in the working runtime. Do not mark the fork phase complete until a full paginated fork inventory (or a demonstrably equivalent complete source) can be read, normalized, and classified.
 
 No Unity Editor session, Unity package build, Python test suite, CI workflow, live MCP client round-trip, or performance benchmark was executed by this research pass. Those are validation steps, not completed checks.
+
+
+## Continued research — target draft PR and upstream overlap (2026-10-14)
+
+### Target PR #1 and branch review
+
+Inspected [ApexForge-devz/unity-mcp PR #1](https://github.com/ApexForge-devz/unity-mcp/pull/1), an open draft against beta:
+- Head SHA: `9480a79408422c95c17c08ed4efb0b66d24a1f24`.
+- 89 changed files, 7,039 additions, 247 deletions.
+- Scope: lazy asset-search page materialization, fixed Game View resolution/readback, native Editor-window screenshots, modal liveness/answering and scene-change guard, Core-first tool discovery and description/schema compaction.
+- Added [DRAFT_PR_AND_UPSTREAM_OVERLAP.md](DRAFT_PR_AND_UPSTREAM_OVERLAP.md) with the source/file comparison and risk status.
+
+### PR-head CI is partly green, but Unity runtime is still unverified
+
+GitHub Actions run results on head `9480a794...` were inspected individually:
+- Python tests: success.
+- C# compile check for configured Windows/macOS/Linux symbols: success.
+- Documentation reference drift, docs build: success.
+- Unity Tests workflow: workflow conclusion success, but actual Unity test job skipped (license secret unavailable).
+- E2E Bridge Smoke workflow: workflow conclusion success, but actual bridge smoke job skipped (license secret unavailable).
+
+Therefore, CI does establish Python, compile-only and docs evidence; it does **not** establish that the draft's Unity EditMode tests or live bridge smoke ran. Those remain mandatory before trusting the modal/transport lifecycle paths.
+
+### Duplicate/overlap findings
+
+- The sampled Editor-window screenshot tool, helper, Python wrapper, tests and guide in PR #1 have exactly the same blob SHA as the corresponding files in DelPariah's [upstream screenshot PR #1417](https://github.com/CoplayDev/unity-mcp/pull/1417). The research records this as source equality and a coordination/provenance item, without inferring intent.
+- The target draft's `ManageAsset.SearchAssets` lazy-loads only page rows, validates page inputs and uses `long` page offset/count arithmetic. Upstream [PR #1459](https://github.com/CoplayDev/unity-mcp/pull/1459) applies a similar algorithm but its source/tests are not identical; target specifically rejects blank/invalid sanitized folders before calling AssetDatabase. This is one overlapping implementation to reconcile.
+- Target modal probe code is materially longer/different than KamilDev's [PR #1350](https://github.com/CoplayDev/unity-mcp/pull/1350): it adds bounded capture/answer deadlines, owner-chain checks for a disabled parent, unknown-modal fail-safe state, answer serialization and verifies the original dialog closed, plus explicit sampler stop signaling and a bounded join. These additions are potential reliability improvements, but need actual Windows Editor/E2E tests.
+- The draft's schema compaction copies tool definitions and shortens descriptions while preserving parameter structure, with `get_tool_details` exposing the full registered definition. That is not equivalent to centralizing/capping **tool results**. Its dynamic group activation still relies on FastMCP 3 per-session visibility; the modern MCP tools/list contract needs a separate mode-aware design.
+
+### Additional upstream proposal list
+
+Fetched the current first page of open upstream PRs and added it to [UPSTREAM_BRANCH_COMPARISON.md](UPSTREAM_BRANCH_COMPARISON.md), including #1472 custom-tool registration, #1468 user config preservation, #1465 Editor focus-refresh threading, #1463 Play Mode readiness, #1462 prefab overrides, #1461 custom instructions, #1460 test cleanup, and earlier #1459/#1417/#1350 overlap. Each item remains a snapshot and must be rechecked before implementation.
+
