@@ -120,3 +120,44 @@ Commit evidence:
 - [TypeScript support commit](https://github.com/czmomocha/unity-coplayDev-mcp/commit/70df486b7dd787d0a840ed10b5ca629600d3599d)
 - [TypeScript outside Assets commit](https://github.com/czmomocha/unity-coplayDev-mcp/commit/b49fe7131b8824b01970611752e7730b7d477ba6)
 - [Unity 2020 compatibility adaptation](https://github.com/czmomocha/unity-coplayDev-mcp/commit/2e2e3e024fb2dcdcaae36638aa238860aab288da)
+
+
+## 8. Additional fork-focused compare results
+
+A second compare pass tested additional names discovered by the CoplayDev-focused searches. Results below refer to the reported default branch/ref at the time. The connector does not always return a common ancestor for downstream repositories; a 404 is not treated as evidence that the repository is absent or has no changes.
+
+| Candidate | Compare against CoplayDev beta | What the ahead delta contains / conclusion |
+|---|---|---|
+| [OverTM/CoplayDev.unity-mcp](https://github.com/OverTM/CoplayDev.unity-mcp) main | Behind by 1,542 commits; 0 ahead commits/files | Sampled README is upstream-branded. Stale mirror on this ref, no code contribution identified. |
+| [heshuimu/CoplayDev.unity-mcp](https://github.com/heshuimu/CoplayDev.unity-mcp) main | Behind by 1,492 commits; 0 ahead commits/files | Sampled README resembles the upstream README. Stale snapshot; no port recommendation. |
+| [neurmostudio0409/CoplayDev-unity-mcp](https://github.com/neurmostudio0409/CoplayDev-unity-mcp) beta | Behind by 524 commits; 0 ahead commits/files | Upstream-branded snapshot; no unique source contribution identified in this compare. |
+| [buianhduc-ai/unity-mcp-CoplayDev](https://github.com/buianhduc-ai/unity-mcp-CoplayDev) beta | Behind by 199 commits; 0 ahead commits/files | Snapshot of an older upstream branch; no delta from older ancestry beyond being behind. |
+| [Bon-Games/Unity-MCP-CoplayDev](https://github.com/Bon-Games/Unity-MCP-CoplayDev) beta | Behind by 682 commits; 0 ahead commits/files | Older upstream-style snapshot; no unique contribution identified. |
+| [adrnsyhsdq-debug/unity-mcp](https://github.com/adrnsyhsdq-debug/unity-mcp) beta | Ahead by 16, behind by 426; 16 changed files | All 16 ahead files are added personal fork notes and one-line setup logs; no implementation source change. The fork's own [FORK_NOTES.md](https://github.com/adrnsyhsdq-debug/unity-mcp/blob/beta/FORK_NOTES.md) states it is for personal experiments. |
+| [czmomocha/unity-coplayDev-mcp](https://github.com/czmomocha/unity-coplayDev-mcp) main | Ahead by 8, behind by 1,541; 32 changed files | The non-upstream contribution is substantive: TypeScript/TSX management for Puerts projects, custom-tool guide, old Unity compatibility notes. See Section 7. |
+| [VRCLearn/unity-mcp](https://github.com/VRCLearn/unity-mcp) main | Ahead by 11, behind by 115; 31 changed files | Dedicated localization and VPM distribution/validation/release automation. See Section 3. |
+
+Compare failures/no-ancestry responses were also returned for these public candidates:
+- [dawnli/unity-mcp](https://github.com/dawnli/unity-mcp)
+- [ShibaPapaMikami/unity-mcp-template-coplay](https://github.com/ShibaPapaMikami/unity-mcp-template-coplay)
+- [iflow-mcp/coplaydev-unity-mcp](https://github.com/iflow-mcp/coplaydev-unity-mcp)
+- [KasuganoSorakog/UnityMCP](https://github.com/KasuganoSorakog/UnityMCP)
+- [BaBy-Metal/unity-mcp](https://github.com/BaBy-Metal/unity-mcp)
+- [haroon911/unity-mcp-vpm](https://github.com/haroon911/unity-mcp-vpm)
+- [iflow-mcp/coplaydev-coplay-unity-plugin](https://github.com/iflow-mcp/coplaydev-coplay-unity-plugin)
+- [Amarok121/unity-platform-integration-sample](https://github.com/Amarok121/unity-platform-integration-sample)
+- [devoffeed/UN-mcp-server](https://github.com/devoffeed/UN-mcp-server)
+- [Ridil86/claude-unity-bootstrap](https://github.com/Ridil86/claude-unity-bootstrap)
+- [JossueMac/unity-mcp](https://github.com/JossueMac/unity-mcp)
+
+For this group, the compare endpoint's 404 often reflects absent merge-base/source ancestry or unsupported cross-owner ref resolution. A positive source review would require fetching its changed code/tree or locating the actual common ancestor. No unique code contribution is claimed for these candidates merely from the error.
+
+## 9. Fork-pass conclusion
+
+In the CoplayDev-focused candidates whose history could be compared successfully, there are only two currently substantiated code/customization leads from this search set:
+1. VRCLearn: localization and packaging/sync automation.
+2. czmomocha: Puerts/TypeScript tooling and old-version compatibility.
+
+The third repo with a nonzero ahead count, adrnsyhsdq-debug, adds only personal notes and setup-log files. Multiple other repos are stale mirrors. Pashara's Frame Debugger and SabriBoughanmi's Memory Profiler are valuable specialist derivatives, but they are not counted as direct forks of the current target absent ancestry evidence.
+
+This is a meaningful source comparison of the available candidate set, **not exhaustive coverage of all 1,553 upstream forks**. The inaccessible complete fork-list endpoint remains the main coverage blocker.
