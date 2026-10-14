@@ -95,3 +95,90 @@ The repository's open-PR list was fetched again. These proposals are useful for 
 | [#1194](https://github.com/CoplayDev/unity-mcp/pull/1194) | Auto-select Unity instance by launch directory/worktree | Open | Could reduce repeated instance selection but must fail closed if identity remains ambiguous |
 
 PR statuses and descriptions are point-in-time. Before porting, inspect current status, head SHA, patch, relevant tests and actual CI state. A green workflow umbrella can contain skipped Unity/E2E jobs; inspect individual jobs rather than treating every run with a success conclusion as full runtime validation.
+
+
+## 6. Additional active proposals — source and test implications
+
+These open PRs were rechecked on 2026-10-14 and their main changes were inspected through per-file patches. Their state can change after this snapshot.
+
+### PR #1463 — Wait for Play Mode startup and execute code once ready
+
+[PR #1463](https://github.com/CoplayDev/unity-mcp/pull/1463) distinguishes “Editor entered Play Mode” from “scene initialization is complete.”
+
+Source reviewed: the new PlayModeStartupService.cs, Python startup orchestration, and ManageEditorStartupTests.cs, all linked from the [PR file view](https://github.com/CoplayDev/unity-mcp/pull/1463/files).
+
+The design gives manage_editor(action="play") optional wait_until=scene_loaded|first_frame, on_ready_code and bounded wait_timeout. Unity retains startup jobs in SessionState across domain reload; code marked executing at reload is failed as interrupted and not replayed. The Python layer generates a request ID, receives or reconstructs a job ID, polls for completion and tells callers not to resubmit code after a lost reply. Tests cover invalid options, timeouts, request IDs and job lifecycle; the PR says four multi-version checks were skipped because those Unity versions were not installed.
+
+**Research decision:** strong P2 candidate. This fills a distinct lifecycle gap for workflows whose next operation depends on scene Start/first frame; it is not a replacement for generic Editor liveness or the target's current play action. Before adoption, verify CLI and Python REST paths have identical no-resend semantics, startup jobs stay bound to the correct Unity project, domain reload does not duplicate code side effects, and cancellation/Play Mode stop cleans up every job.
+
+### PR #1460 — Test-run timeout and native cleanup ownership
+
+[PR #1460](https://github.com/CoplayDev/unity-mcp/pull/1460) keeps the native Unity Test Runner identity after an MCP initialization timeout rather than declaring the operation finished while Unity is still executing or cleaning up.
+
+Source reviewed: TestJobManager.cs and TestJobManagerLifecycleTests.cs in the [PR file view](https://github.com/CoplayDev/unity-mcp/pull/1460/files).
+
+The patch tracks the native Unity run GUID and states such as initialization timed out, native run started, and native cleanup pending. It disables Editor interaction throttling before native test execution in both modes and restores captured settings even when startup throws. After timeout it keeps ownership, registers cleanup callbacks across domain reload, and blocks a new test run until the old native run is actually cleaned up; late callbacks are prevented from overwriting the timeout failure.
+
+**Research decision:** prioritize as a high-value reliability fix if current beta can reproduce the failure. It addresses a concrete failure mode where an MCP job times out but Unity's test run or operation lock remains live. Validate EditMode and PlayMode, timeout before/after native RunStarted, domain reload, native errors, user cancellation, and that preferences/locks are restored before another job starts. The PR's test claims are author-reported; no Unity tests were run during this research session.
+
+### PR #1465 — Keep Editor-window focus refresh off the main thread
+
+[PR #1465](https://github.com/CoplayDev/unity-mcp/pull/1465) moves slow connection, executable and client-config checks away from the Editor UI thread.
+
+Source reviewed: EditorAsyncRefresh.cs, EditorAsyncRefreshTests.cs and WindowFocusRefreshTests.cs in the [PR file view](https://github.com/CoplayDev/unity-mcp/pull/1465/files).
+
+The helper runs bounded work on a worker, applies results back from EditorApplication.update, coalesces duplicate focus requests, caches successful results for a TTL, uses a generation/request key to discard stale results, and stops UI updates for detached windows. Tests model slow I/O, request coalescing, TTL reuse, superseded values and window-detach behavior.
+
+**Research decision:** worthwhile Editor UX/reliability work, complementary to command bridge liveness. The code must keep all Unity APIs and UI writes on the main thread, use only thread-safe filesystem/process/network operations in the worker, and avoid stale completions rewriting configuration or connection status after settings change. Review Task.Run work for hidden Unity dependencies and test Editor shutdown/domain reload while work is pending.
+
+### PR #1468 — Preserve manual client configuration
+
+[PR #1468](https://github.com/CoplayDev/unity-mcp/pull/1468) prevents automatic configuration checks and package migrations from overwriting user-maintained stdio launch commands, environment variables, working directories or wrapper executables.
+
+The patch validates the args field as a string array, preserves custom launch commands when determining transport, and reuses common JSON entry/URL helpers instead of independently rewriting config. The PR describes tests for custom launch commands, invalid argument shapes and configuration migrations.
+
+**Research decision:** a practical P1 data-loss prevention item. Treat client configuration as user-owned state: prefer narrow, atomic merges; validate before writing; preserve unrelated fields and formatting where feasible; and require explicit action for “replace with generated configuration.” Test backup/rollback behavior and every supported client layout.
+
+### PR #1285 — Scope local endpoint and server ownership by Unity project
+
+[PR #1285](https://github.com/CoplayDev/unity-mcp/pull/1285) addresses machine-global EditorPrefs contamination when multiple projects/worktrees run Unity. Its changes scope local endpoint/transport, PID/port/PID-file and instance token by project hash, add a process-level UNITY_MCP_HTTP_URL override, and migrate prior global settings atomically under a cross-process mutex. It restricts launch URL schemes to HTTP(S) and retains machine-local settings rather than writing endpoint values into the project.
+
+**Research decision:** high priority if confirmed absent in current target. Compare the PR against ProjectIdentityUtility, EditorConfigurationCache, PID/server manager and HttpEndpointUtility before implementing overlapping storage. Add two-project/two-worktree tests, migration conflicts, inherited environment overrides, invalid URL schemes and crash/restart ownership recovery. Request Unity-instance identity and process-owned endpoint are related but distinct.
+
+### PR #1194 — Select Unity instance by launch directory / MCP roots
+
+[PR #1194](https://github.com/CoplayDev/unity-mcp/pull/1194) uses the client launch directory (or advertised file:// MCP roots) to choose a matching Editor project when several sessions are connected. It parses UNC paths, Windows drive URIs and percent encoding; normalizes the stdio Assets path to project root; and caches roots per client session. A missing or ambiguous match falls back to asking rather than choosing a random Editor.
+
+**Research decision:** useful improvement to multi-instance routing if current selection relies mainly on an explicit instance or a single running Editor. Keep a fail-closed ambiguity rule. Test symlinks/real-path normalization, Windows UNC and drive URIs, macOS/Linux paths, roots inside Assets, unrelated nested repositories and two Unity worktrees with the same project name. Inspect client-root support before making it a required path, and ensure cache keys do not leak roots across tenants.
+
+### PR #1462 — Prefab instance overrides
+
+[PR #1462](https://github.com/CoplayDev/unity-mcp/pull/1462) adds list_overrides, apply_overrides and revert_overrides for a selected prefab instance. It distinguishes property/component/GameObject additions and removals, normally excludes Unity default overrides, validates prefab lineage and narrows writes to a target. Ambiguous same-name siblings are rejected; instance-ID targeting is limited to that object; array child selectors do not widen to the whole array. Some removed-GameObject override APIs are reflected and report whether the operation is available on the current Unity version.
+
+**Research decision:** potentially high-value workflow for diagnosing “changed prefab asset but scene still looks unchanged.” Keep as an upstream candidate rather than developing a competing interface now. Before adoption, check exact selection semantics, Undo behavior, prefab-stage contexts, added/removed object operations, and Unity-version behavior for unavailable APIs.
+
+### PR #1472 — Required custom-tool parameters after optional parameters
+
+[PR #1472](https://github.com/CoplayDev/unity-mcp/pull/1472) fixes custom tool registration by declaring dynamic function parameters keyword-only, matching the handler's kwargs calling convention. The author reports 1,577 Python tests passing plus a real FastMCP registration smoke where optional limit=10 preceding required action preserves schema requiredness and defaults.
+
+**Research decision:** narrow compatibility fix with good regression-test value. Re-check merged state before porting; keep a Python-version and FastMCP matrix and tests verifying the visible schema excludes injected context while preserving parameter type, ordering, default and requiredness.
+
+### PR #1461 — File-backed server instructions
+
+[PR #1461](https://github.com/CoplayDev/unity-mcp/pull/1461) adds additional instructions from a UTF-8 file through --instructions-file or UNITY_MCP_INSTRUCTIONS_FILE, appending them to built-in instructions for stdio and HTTP. The description says missing/unreadable/invalid UTF-8 files fail with a configuration error without printing file content; default instructions remain unchanged for an unset or empty file.
+
+**Research decision:** useful opt-in for project-specific conventions and workflows. Risks are shared-server scope (one instructions file may affect several projects/users), untrusted instructions if a path is configured through an untrusted environment, and accidental secret inclusion. Define precedence, permissions, size limits, content trust and sharing behavior before implementing this pattern.
+
+## 7. Relationship to existing target draft PR #1
+
+The target draft PR already covers some work that appears in upstream PRs #1459, #1417 and #1350. Other newly reviewed proposals are distinct:
+- #1463: explicit startup readiness and one-shot post-startup work.
+- #1460: native test-run cleanup ownership after MCP timeout.
+- #1465: nonblocking Editor UI refresh.
+- #1468: preserve user-configured client launchers.
+- #1285 / #1194: per-project endpoint scoping and client-worktree-aware instance selection.
+- #1462: prefab override inspection.
+- #1472: custom tool signature robustness.
+- #1461: project/user instructions loaded at startup.
+
+Before building anything, re-check open/merged states and compare relevant files against the current feature/unity6-enhancements head, beta baseline and contributor branch. Don't equate “PR exists” with “feature is in beta.”
