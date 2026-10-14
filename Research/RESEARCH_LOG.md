@@ -306,3 +306,17 @@ Added:
 - P2.8 preflight compile/domain-reload investigation remains a hypothesis requiring a Unity reproduction before changing the refresh strategy.
 
 No runtime implementation was made. The complete paginated fork inventory remains the blocking criterion for calling the overall audit exhaustive.
+
+
+## Continued review — target draft schema-compaction code (2026-10-14)
+
+Added [DRAFT_PR_CODE_REVIEW.md](DRAFT_PR_CODE_REVIEW.md) after direct inspection of the draft's middleware, registry, group activation and tests:
+- The middleware compacts only on_list_tools output and creates copies, so the registered full tool is not mutated.
+- Schema structure/constraints are kept; get_tool_details returns the full registered metadata without invoking tools.
+- The current caps (220 chars for tool description, 140 for nested schema descriptions) are blind prefix truncation after whitespace normalization. That can strip a destructive-operation warning, path restriction, required follow-up or recovery instruction located later in a description. The existence of full details is not enough if the compact text does not cue the model to look them up.
+- The test suite uses a small FakeTool fixture and does not measure the entire production catalog, real tokenizer costs, task success, wrong-tool selection, warnings lost through truncation, or how often details lookup is needed.
+- Group activation continues to use FastMCP 3.x per-session visibility; compact schema text does not solve the newer MCP tools/list contract. The protocol migration remains a separate prerequisite for modern compatibility.
+- Added P1.7 criteria: preserve high-risk preconditions in short descriptions, include a details hint, measure whole-catalog bytes/tokens, and assess capability retrieval plus task outcome against the same beta catalog.
+- New research commit: 0d0bf84dcc2915ed2fc3002a8ba63c8dc8eb70a6 added the source-level code review. The following README and backlog commits link it and add testable criteria.
+
+No runtime source changed and no new test was run as part of this source-only review.
