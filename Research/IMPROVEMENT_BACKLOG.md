@@ -250,6 +250,17 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Sources:** [Target MemorySnapshotOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/Profiler/Operations/MemorySnapshotOps.cs); [specialist Tool_MemoryProfiler.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Editor/Scripts/Tool_MemoryProfiler.cs); [SnapshotQueryEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/SnapshotQueryEngine.cs); [source/test analysis](SPECIALIST_WORKFLOWS.md).
 
+### P2.5 Release/version/source alignment
+
+**Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.
+
+**Recommendation — ADAPT:**
+- Declare which components share versions and where independent versioning is intentional.
+- Test manifest, package JSON, Python metadata, lockfile and release artifacts against that policy; do not hard-code equality if version skew is intended.
+- Keep fork identity/support ownership clear if distribution materially differentiates.
+- Verify release packaging includes only intended content and preserves asset licenses/provenance.
+
+**Acceptance tests:** reproducible release metadata, locked dependency install, declared Unity/server compatibility matrix, built package contents match allowlisted manifest, generated references remain in sync.
 
 ### P2.6 Optional Play Mode input simulation and task validation
 
@@ -271,7 +282,6 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Sources:** [RunInBackgroundPlayGuard.cs](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Services/RunInBackgroundPlayGuard.cs), [DOTS tool](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageDots.cs), [unknown-vs-zero summary](https://github.com/The1Studio/unity-mcp/blob/beta/MCPForUnity/Editor/Helpers/EntityCountSummary.cs).
 
-
 ### P2.8 Test-run preflight domain-reload cost
 
 **Finding:** target run_tests currently calls preflight with wait_for_no_compile=true and refresh_if_dirty=true. If external asset changes make the editor dirty, preflight requests refresh with compile=request. The stale bgr fork proposes compile=none to avoid an unnecessary reload before tests, but its commit explicitly says the change could not be compiled/run in Unity.
@@ -281,21 +291,6 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 **Acceptance tests:** dirty non-code asset before tests does not cause needless domain reload; dirty script asset is compiled before tests use it; preflight respects active test-run exclusion; timeout/disconnect leaves a clear state; run outcome records compile/reload status.
 
 **Source:** [Target preflight.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/preflight.py), [target run_tests.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/run_tests.py), [bgr change](https://github.com/bgr/unity-mcp/commit/11cfd4caac713c0b59846f2d0203e148e5977d7c).
-
-
-### P2.5 Release/version/source alignment
-
-**Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.
-
-**Recommendation — ADAPT:**
-- Declare which components share versions and where independent versioning is intentional.
-- Test manifest, package JSON, Python metadata, lockfile and release artifacts against that policy; do not hard-code equality if version skew is intended.
-- Keep fork identity/support ownership clear if distribution materially differentiates.
-- Verify release packaging includes only intended content and preserves asset licenses/provenance.
-
-**Acceptance tests:** reproducible release metadata, locked dependency install, declared Unity/server compatibility matrix, built package contents match allowlisted manifest, generated references remain in sync.
-
-
 
 ### P2.9 Play Mode startup readiness and one-shot post-start actions
 
