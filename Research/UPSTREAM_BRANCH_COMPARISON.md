@@ -182,3 +182,12 @@ The target draft PR already covers some work that appears in upstream PRs #1459,
 - #1461: project/user instructions loaded at startup.
 
 Before building anything, re-check open/merged states and compare relevant files against the current feature/unity6-enhancements head, beta baseline and contributor branch. Don't equate “PR exists” with “feature is in beta.”
+
+
+## 8. Additional patch-level review — MCP↔Unity proposals (2026-10-14)
+
+Added [RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md](RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md) after re-checking target and upstream `beta` heads. Both resolved to `142ea0af4890337f0ff6658df61db23982313717`; these changes are proposals, not already-present target behavior at this snapshot.
+
+New patch-reviewed areas include #1380 (shared local HTTP server lifetime), #1459 (lazy asset-search hydration and path/page validation), #1469 and #1472 (argument normalization and dynamic tool signatures), #1455 (C# wrapper aliases and diagnostics), #1448 (optional MCP console-log filtering), #1135 (Undo-safe GameObject deletion), #1450 (fixed Game View dimensions and render-target readback), and #1464 (exact optional package versions).
+
+The review separates in-scope MCP↔Unity reliability from lower-priority Editor convenience work and records testing gaps. None of these proposals were assumed to be merged. Re-check status and compare landed code before implementation; do not duplicate a feature that has arrived in beta.

@@ -30,6 +30,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Inspect the native modal-answering, liveness sampler, dispatcher queue and scene-change guard paths and identify live-Editor test gates.
 - [x] Compare external job/result-budget patterns against the target's existing test-job manager, pending-response contract and dispatcher queue.
 - [x] Inspect additional upstream lifecycle/configuration PR patches and add source-informed backlog entries for startup readiness, test cleanup, nonblocking UI refresh, config preservation, and prefab overrides.
+- [x] Patch-review additional in-scope upstream proposals for asset pagination, argument validation, C# wrapper diagnostics, console filtering, Game View sizing, Undo, package-version safety, and multi-Editor server lifetime.
 - [ ] Enumerate and classify direct forks of the target/upstream using a reproducible complete listing.
 - [ ] Systematically review meaningful forks-of-forks and all fork candidates with ahead-of-upstream code.
 - [ ] Diff the high-value candidates file-by-file and map changes to all corresponding target handlers/tests.
@@ -51,6 +52,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Fork candidate register and search coverage](FORK_CANDIDATE_REGISTER.md)
 - [Specialist workflow source review](SPECIALIST_WORKFLOWS.md)
 - [MCP modern/legacy protocol compatibility plan](PROTOCOL_COMPATIBILITY.md)
+- [Recent in-scope upstream proposal review (2026-10-14)](RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md)
 - [Upstream branch, issue and PR tracking](UPSTREAM_BRANCH_COMPARISON.md)
 - [Existing draft PR and upstream overlap](DRAFT_PR_AND_UPSTREAM_OVERLAP.md)
 - [Draft PR schema-compaction code review](DRAFT_PR_CODE_REVIEW.md)

@@ -400,6 +400,25 @@ Potential later investigations:
 
 For each, establish a task baseline and controlled experiment first. Do not accept proposals based only on another project's tool count or unverified speed claims.
 
+
+## Upstream overlap guard — 2026-10-14 snapshot
+
+These are upstream proposals, not features already present in the inspected beta baseline. Re-check state and compare the merged diff before implementation; do not develop duplicate code while an equivalent upstream change remains a viable adoption path.
+
+| Proposal | Active backlog relationship | Guardrail |
+|---|---|---|
+| [#1380 shared HTTP server shutdown](https://github.com/CoplayDev/unity-mcp/pull/1380) | P1.3 / P1.6 / P2.1 — instance identity, server ownership and transport lifecycle | Verify with two simultaneous Editors. Only stop a process-owned server after a bounded probe confirms no other connected instances; probe failure should not kill a potentially shared server. |
+| [#1459 asset-search pagination](https://github.com/CoplayDev/unity-mcp/pull/1459) | P1.2 and P2.2 — bound data hydration and asset operations | Overlaps target draft PR #1. Hydrate only the requested page, reject invalid folder/page inputs, and benchmark real projects; current patch still enumerates all matches for total count. |
+| [#1469 JSON-encoded action/menu arguments](https://github.com/CoplayDev/unity-mcp/pull/1469) | Tool-contract and dispatch validation | Preserve typed schemas, decode no more than one encoded string layer per boundary, and validate the final action/path before dispatch. |
+| [#1472 custom-tool parameter ordering](https://github.com/CoplayDev/unity-mcp/pull/1472) | P1.1/P1.7 and custom-tool schema reliability | Preserve schema requiredness/defaults and injected-context boundaries for both required-before-optional and optional-before-required definitions. |
+| [#1455 C# type aliases and diagnostics](https://github.com/CoplayDev/unity-mcp/pull/1455) | Code execution and compile diagnostics | Keep generated-wrapper line offsets synchronized and test CodeDom, Roslyn, fallback and runtime-error paths. |
+| [#1448 Console filtering](https://github.com/CoplayDev/unity-mcp/pull/1448) | P2.1/P2.16 observability and result signal | Exclude MCP-prefixed logs only when requested; keep them by default and preserve pagination/count behavior. Prefix classification is heuristic. |
+| [#1135 Undo-safe GameObject deletion](https://github.com/CoplayDev/unity-mcp/pull/1135) | Scene/GameObject mutation correctness | Verify delete-then-Undo behavior across supported Unity versions; do not assume a single Editor test proves a cross-version guarantee. |
+| [#1450 fixed Game View resolution](https://github.com/CoplayDev/unity-mcp/pull/1450) | P3 visual iteration | Lower priority; requires reflected API compatibility, visible-window/readback handling, clamping disclosure and clarity that EditorPrefs preset state is shared and not restored. |
+| [#1464 exact optional package versions](https://github.com/CoplayDev/unity-mcp/pull/1464) | Secondary Unity Editor workflow | Preserve installed/Git/local dependencies unless the user explicitly changes them; distinguish package release version from native API capability. |
+
+Detailed evidence and limitations: [RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md](RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md).
+
 ## Proposed milestones
 
 | Milestone | Work | Exit condition |

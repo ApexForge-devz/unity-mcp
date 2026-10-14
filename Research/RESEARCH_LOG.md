@@ -434,3 +434,21 @@ The research scope is now explicitly limited to improvements in the MCP protocol
 External generator and inference integrations are excluded: no Meshy or other hosted generation APIs, ComfyUI/Pinokio integrations, third-party generator SDKs or credentials, local inference orchestration, provider-specific model options, billable remote generation jobs, or provider artifact download pipelines. Such features found in fork reviews are historical observations only, not recommendations. The provider-focused reviews remain linked for provenance but have been marked **OUT OF SCOPE**; they must not drive implementation planning. Generic MCP↔Unity reliability lessons may still be considered only when they can be applied independently of those integrations.
 
 The active source of truth for proposed work is [IMPROVEMENT_BACKLOG.md](IMPROVEMENT_BACKLOG.md), constrained by [SCOPE.md](SCOPE.md). This is a documentation-only scope correction: no runtime code, provider integrations, or tests were changed/run in this update.
+
+
+## Continued in-scope upstream patch review (2026-10-14)
+
+Added [RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md](RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md). This pass fetched the target and upstream beta refs and confirmed both resolved to `142ea0af4890337f0ff6658df61db23982313717`.
+
+New source-checked findings cover:
+- #1380: process-owned local HTTP server shutdown, per-project/per-port tracking and fail-safe behavior when a bounded instance probe cannot confirm whether another Editor is connected.
+- #1459: page-only asset hydration and invalid search/page input rejection, compared with the baseline's eager `GetAssetData` plus final pagination. The proposal still scans all matches to calculate total count.
+- #1469: one-layer JSON-string decoding for `read_console` and menu arguments, with real-FastMCP and Editor-side handler tests.
+- #1472: keyword-only custom-tool parameters when required fields follow optional fields.
+- #1455: UnityEngine `Object`/`Random` aliases, wrapper line offsets and actionable CodeDom/Roslyn error hints.
+- #1448: optional filtering of MCP Console prefixes before count and pagination.
+- #1135: Undo registration for GameObject deletion.
+- #1450: fixed Game View dimensions with allocated render-target readback and reflected Editor APIs.
+- #1464: explicit optional package versions and separate installed-package/native-API capability reporting.
+
+The referenced proposals were observed open in GitHub metadata on 2026-10-14. Each review separates proposal behavior from target-beta behavior, calls out overlap with existing work, and lists missing validation. This is patch-level research only: no Python tests, Unity tests, multi-Editor reproduction, performance benchmarks or runtime code edits were performed. External generator/inference integration proposals were not included.
