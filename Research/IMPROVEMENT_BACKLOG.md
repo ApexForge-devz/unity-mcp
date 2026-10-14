@@ -298,6 +298,23 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Sources:** [PerfAgent ProfilerOwnership.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Editor/Core/ProfilerOwnership.cs), [PerfRuleEngine.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Editor/Analysis/PerfRuleEngine.cs), [PerfDataFidelityTests.cs](https://github.com/MothCyan/PerfAgent-Unity/blob/main/Assets/PerfAgent/Tests~/Editor/PerfDataFidelityTests.cs), and [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md).
 
+
+### P2.15 Bound Editor dispatcher backlog and share the frame budget fairly
+
+**Finding:** the target's `TransportCommandDispatcher.ProcessQueue` takes every queued non-executing command from its global Pending dictionary and processes the ready list in one Editor update pass. Per-request cancellation is already implemented and checked before handler dispatch; once a command is running, cancelling its caller does not undo the work. The inspected dispatcher does not show a hard pending-count/serialized-byte cap or a per-update count/time slice. A stalled native modal can leave incoming requests retained until cancellation/disconnect, and after the Editor resumes a large ready list can produce a long update.
+
+**Recommendation — ADAPT only after a focused characterization test:**
+- Add pending-command count and serialized-byte admission limits with an explicit retryable/backpressure response; don't retain an unlimited number of command JSON bodies while the Editor is blocked.
+- Preserve FIFO/order where required and one active Unity API command at a time. If processing multiple short commands in one update, use a bounded item/time budget and continue the rest on later updates.
+- Keep cancellation's guarantee precise: cancel before a command begins can prevent its side effects; cancellation after the handler starts means outcome may be unknown or still in progress.
+- Return a correlation/job handle for long-running operations so callers poll the original operation instead of repeating a mutation.
+- Log queue count/oldest age and operation status, not full command payloads or secrets.
+- Check the transport registration and async-handler continuation path for races before adding any queue/timeout refactor; the target already has queue locking, active request state and cancellation cleanup.
+
+**Acceptance tests:** queue count/byte cap, flood during modal stall, FIFO under slicing, no concurrent Unity API execution, cancel before start, cancel during active handler, disconnect cleanup, domain reload with queued commands, one slow command plus many fast commands, queue age observability, and no duplicate side effects when a client times out and polls.
+
+**Source references:** target [TransportCommandDispatcher.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/Transport/TransportCommandDispatcher.cs), target [TestJobManager.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Services/TestJobManager.cs), and [OPERATIONAL_RELIABILITY_PATTERNS.md](OPERATIONAL_RELIABILITY_PATTERNS.md).
+
 ### P2.5 Release/version/source alignment
 
 **Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.
