@@ -91,3 +91,12 @@ A deeper source review against target PID/EditorPrefs state and Unity SessionSta
 The target beta has the complementary risk: PID/token state is globally stored in EditorPrefs even though PID files are project-local, so a second project may read and act on another project's valid managed-server handshake. The existing PID/token check identifies the server process but is not an ownership proof for the Editor requesting termination.
 
 Detailed code paths, alternative lifecycle design, race concerns, the /api/instances endpoint verification, and required two-Editor tests are in [SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md](SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md). Updated adoption judgment: **ADAPT, not cherry-pick as-is**. Required lifecycle tests include owner-first-exit/borrower-last-exit, attachment during shutdown, startup on another project's occupied port, external server protection and process-crash recovery.
+
+
+## Post-review detail — PR #1469 argument normalization
+
+Added [ARGUMENT_NORMALIZATION_REVIEW.md](ARGUMENT_NORMALIZATION_REVIEW.md) after checking the exact target schemas and Unity handlers. The current Read Console Python tool uses Literal actions/formats; the C# ReadConsole handler normalizes but lacks the proposed decoder. Execute Menu Item forwards menu_path and its C# handler checks a case-insensitive blacklist before execution.
+
+The PR's important safety invariant is **decode exactly one supported JSON string layer before validation and before the menu blacklist**, while retaining typed Literal schemas and validating the final value. The patch adds BeforeValidator on Read Console action/format, one-layer decoder helpers on the Python and C# boundaries, and tests for nested strings, malformed/unknown actions, quoted-filter preservation and encoded File/Quit denial. The target baseline tests inspected do not cover encoded scalar action/format or encoded menu paths.
+
+Adoption judgment: **ADAPT**, limited to these explicit fields. Do not turn it into recursive or global JSON-string coercion. Tests must run against the pinned FastMCP dependency, and direct/batch C# routes must validate without relying on Python.

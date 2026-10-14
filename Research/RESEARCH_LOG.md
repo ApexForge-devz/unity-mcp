@@ -503,3 +503,15 @@ Verified the target's **/api/instances** route in [main.py](https://github.com/A
 Critical new review finding: the PR's marker is cleared when Unity exits according to Unity's [SessionState documentation](https://docs.unity3d.com/ScriptReference/SessionState.html). If launcher A quits while borrower B is connected, A leaves the server running but loses its marker; B has no marker and won't stop the server when it exits later. Also, the count probe is not atomic with PID termination and counts by project hash, so attachment races and duplicate same-hash sessions require explicit treatment.
 
 Updated P1.6 to **ADAPT, not cherry-pick as-is**: isolate persistent process state, verify managed-process identity, separate launcher identity from cleanup rights, transfer cleanup responsibility or add server-side managed idle cleanup, and test owner-first-exit/borrower-last-exit plus attach-during-shutdown. No source code or tests were changed/run.
+
+
+## Continued source review — JSON-encoded scalar argument normalization (2026-10-14)
+
+Added [ARGUMENT_NORMALIZATION_REVIEW.md](ARGUMENT_NORMALIZATION_REVIEW.md) after reviewing target beta's Read Console and Execute Menu Item schemas/handlers/tests against the upstream PR #1469 patch.
+
+Target observations:
+- Python Read Console, blob 6a642dcec9b83ef6a5915de5b76585bfbc977d4d, uses Literal action/format schemas; the inspected C# ReadConsole handler, blob b4abb5882d5726964c312b945137c794f0b19aa3, lower-cases but lacks a one-layer JSON-string decoder.
+- Python Execute Menu Item, blob af6d46b86182500f2ac98c1a862bb2477a1e7819, forwards menu_path. The C# handler, blob f606f774f1e8f60f23bc706725e9608196a3044d, checks a case-insensitive blacklist before executing the path, so any menu-path decoder must run before this gate.
+- Inspected target EditMode tests cover regular actions and blacklist behavior but not encoded scalar arguments.
+
+The upstream patch adds an opt-in decoder at the Python/C# boundaries, a Pydantic BeforeValidator before Literal validation, explicit allowed action/format checks, and regression tests including nested-encoded inputs and an encoded File/Quit path. The proposed invariant is one-layer decoding only for action/format/menu-path fields, then validation before dispatch/side effects. No global recursive decoder and no coercion of non-string JSON types. No tests were executed in this research session.

@@ -182,6 +182,21 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 
 
+### P1.9 Normalize JSON-encoded scalar arguments before dispatch
+
+**Finding:** the target's Read Console action/format are Literal-backed in the Python schema and then lower-cased in the Unity handler, while Execute Menu Item receives a general menu path and applies its blacklist in C#. Some clients send enum-like scalar strings with one JSON-string encoding layer. Without a narrowly scoped decoder, schema validation or command handling may reject the value inconsistently; any menu-path normalization must happen before the blacklist checks the final path.
+
+**Recommendation — ADAPT PR #1469:** add an opt-in one-layer decoder for Read Console action/format and Execute Menu Item menu_path only. Use a Pydantic BeforeValidator before Literal validation on the Python boundary, repeat validation in the function body for direct callers, and defensively decode at the Unity bridge boundary for direct/batch routes. Decode menu paths before the nonempty/path checks and blacklist. Keep the allowed action/format values typed and explicit; use invariant case normalization for protocol keywords.
+
+- Decode at most one layer; do not recursively decode all JSON-looking strings or coerce encoded numbers/objects/booleans.
+- Preserve ordinary strings and quote characters except for the explicitly supported outer JSON-string representation.
+- Malformed/unknown/nested-encoded action values must fail before Unity dispatch. An encoded File/Quit path must still be blocked.
+- Do not apply a global string-normalization middleware to paths, filters, code or serialized property values.
+
+**Acceptance tests:** actual FastMCP schema validation before and after BeforeValidator; normal and one-layer encoded action/format; invalid/nested/non-string encodings do not dispatch; direct Python calls and Unity direct/batch calls share validation semantics; literal quoted filter preserved; menu path decoded before blacklist; encoded File/Quit remains blocked; nested encoded menu path has zero side effects; no error/default path silently substitutes an allowed value.
+
+**Evidence:** [Argument normalization source review](ARGUMENT_NORMALIZATION_REVIEW.md), target [read_console.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/read_console.py), [ReadConsole.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ReadConsole.cs), [ExecuteMenuItem.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteMenuItem.cs), upstream [PR #1469](https://github.com/CoplayDev/unity-mcp/pull/1469).
+
 ## P2 — Reliability and high-value domain work
 
 ### P2.1 Editor main-thread liveness and retry safety

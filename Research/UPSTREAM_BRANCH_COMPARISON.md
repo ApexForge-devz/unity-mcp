@@ -201,3 +201,10 @@ Patch-level review was deepened against target beta's actual PID/handshake imple
 2. PR #1380's SessionState launch marker prevents borrowed Editors from stopping an owner’s process, but can lose all cleanup ownership if the original launcher exits before the last borrower. A bounded instance-count probe also does not eliminate the attach-between-count-and-stop race.
 
 **Decision:** adapt the project/port state isolation and fail-safe unknown-count policy, but do not port the proposal unchanged. Require transfer/adoption or server-side idle cleanup plus a two-Editor lifecycle test matrix.
+
+
+## 10. PR #1469 — one-layer argument normalization and final-route safety
+
+The deeper review is recorded in [ARGUMENT_NORMALIZATION_REVIEW.md](ARGUMENT_NORMALIZATION_REVIEW.md). Target-beta source confirms a typed Literal schema for Read Console action/format, no matching decoder in the inspected C# handler, and a menu-path blacklist in ExecuteMenuItem.cs. The upstream patch adds a pre-validation decoder, explicit allowlist checks, Unity-side decoding before the menu blacklist and tests for malformed/nested inputs.
+
+**Decision:** adapt narrowly. The critical invariant is one-layer decoding at an opted-in boundary, followed by typed validation before dispatch. Do not decode arbitrary strings globally. Run the actual FastMCP integration test plus Unity EditMode tests before calling the behavior validated.

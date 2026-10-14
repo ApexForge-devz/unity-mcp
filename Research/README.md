@@ -32,6 +32,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Inspect additional upstream lifecycle/configuration PR patches and add source-informed backlog entries for startup readiness, test cleanup, nonblocking UI refresh, config preservation, and prefab overrides.
 - [x] Patch-review additional in-scope upstream proposals for asset pagination, argument validation, C# wrapper diagnostics, console filtering, Game View sizing, Undo, package-version safety, and multi-Editor server lifetime.
 - [x] Deep-review the shared-server ownership proposal against target PID/EditorPrefs code and shutdown tests; record lifecycle handoff risk.
+- [x] Source-review JSON-encoded scalar argument normalization for Read Console and menu execution, including schema validation order and blacklist coverage.
 - [ ] Enumerate and classify direct forks of the target/upstream using a reproducible complete listing.
 - [ ] Systematically review meaningful forks-of-forks and all fork candidates with ahead-of-upstream code.
 - [ ] Diff the high-value candidates file-by-file and map changes to all corresponding target handlers/tests.
@@ -54,6 +55,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Specialist workflow source review](SPECIALIST_WORKFLOWS.md)
 - [Asset dependency/reference analysis review](ASSET_DEPENDENCY_ANALYSIS_REVIEW.md)
 - [Shared HTTP server lifecycle review](SHARED_HTTP_SERVER_LIFECYCLE_REVIEW.md)
+- [JSON-encoded scalar argument normalization review](ARGUMENT_NORMALIZATION_REVIEW.md)
 - [MCP modern/legacy protocol compatibility plan](PROTOCOL_COMPATIBILITY.md)
 - [Recent in-scope upstream proposal review (2026-10-14)](RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md)
 - [Upstream branch, issue and PR tracking](UPSTREAM_BRANCH_COMPARISON.md)
