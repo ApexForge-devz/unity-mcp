@@ -1,0 +1,115 @@
+# Deterministic Scene-Generator Lifecycle — Source Audit
+
+**Observed:** 2026-10-14  
+**Target source:** `ApexForge-devz/unity-mcp`, `beta`  
+**Purpose:** Establish which parts of a script-first scene-generation loop already exist, and where the operation contract is still incomplete.  
+**Status:** Source inspection only. No Unity Editor was launched and no tests were run.
+
+## Executive conclusion
+
+The target already has useful primitives for persistent C# source, structured edits, source validation, compilation requests, readiness polling, scene lifecycle and Editor menu invocation. The problem is not the absence of basic tools. The problem is that these pieces do not yet form one end-to-end **generator operation contract**.
+
+Three distinctions must stay explicit:
+
+1. **The source change was applied** does not prove Unity compiled it successfully.
+2. **Unity is ready for tools again** does not prove the generator completed successfully or saved the expected scene.
+3. **A menu item was invoked** does not prove the generator's intended postconditions passed.
+
+The research priority should therefore be to compose and test the existing tools first, then add only the narrow missing operation/result contract. It should not be to add more direct GameObject/component CRUD calls.
+
+## Source-verified capability map
+
+| Stage | Existing target behavior | Remaining contract gap |
+|---|---|---|
+| Persistent generator source | `manage_script` creates and reads files under Assets; `script_apply_edits` supports structured/source edits. | Keep one authoritative generator source and make the intended output scene explicit. |
+| Stale-edit protection | Script edits use a SHA-256 precondition on the Unity side; stale edits return a mismatch instead of overwriting newer source. | Keep the precondition on every source update and preserve the generated diff/updated hash in the run record. |
+| Source validation | `validate_script` calls the Unity-side source validation path; the C# implementation supports different validation levels and optional Roslyn-based checks. | This is source-level validation. The public wrapper's basic/standard result is not, by itself, proof that Unity's actual project compilation succeeded. |
+| Compile and reload | `refresh_unity` can request script compilation and wait for the canonical Editor state to become ready. Script mutation helpers also wait for Editor readiness after reload-related disconnects. | Readiness is not the same as compiler success. The current readiness result does not itself include the actual compiler error set or a generator-specific result. |
+| Editor state | `mcpforunity://editor/state` exposes compile/reload flags and timestamps, refresh state, instance identity, active-scene metadata and readiness advice. | It exposes state/timing, not a durable scene-generator operation ID, run receipt or scene postcondition report. |
+| Generator invocation | `execute_menu_item` sends a menu path; the C# handler calls `EditorApplication.ExecuteMenuItem`. | The handler reports that execution was attempted and points to logs; it does not return the generator's final result, save status or validation report. The wrapper does not declare a generator run ID. |
+| Scene lifecycle | `manage_scene` supports scene create/load/save and general scene validation. | These actions are separate from generator invocation. They do not automatically prove that the scene saved by a particular run is the intended output or that its custom invariants passed. |
+| Transient C# | `execute_code` compiles and executes a method body in memory. | Useful for limited diagnostics/bootstrap tasks, but unsuitable as the only stored representation of the scene-generation program. |
+
+### Primary source references
+
+- [manage_script.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/manage_script.py) — script operations and source-validation wrapper.
+- [ManageScript.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageScript.cs) — validation, SHA-guarded text edits, atomic source writes and refresh scheduling.
+- [script_apply_edits.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/script_apply_edits.py) — structured edit routing and mutation/reload recovery.
+- [refresh_unity.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/refresh_unity.py) — compile request, readiness wait and disconnect recovery.
+- [editor_state.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/resources/editor_state.py) — compilation flags/timestamps and readiness advice.
+- [execute_menu_item.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/execute_menu_item.py) and [ExecuteMenuItem.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteMenuItem.cs) — menu dispatch and its current result wording.
+- [unity_transport.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/transport/unity_transport.py) and [unity_connection.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/transport/legacy/unity_connection.py) — default retry/readiness transport behavior.
+- [manage_scene.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/manage_scene.py) and [ManageScene.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageScene.cs) — scene lifecycle and general validation.
+
+## Detailed findings
+
+### 1. Script edits are already protected against some stale-write and reload cases
+
+The C# text-edit handler requires a precondition SHA-256, compares it with the current source, and returns a structured stale-file response on mismatch. The Python edit wrapper also routes mutations through a helper that avoids replaying immediately when Unity says it is reloading, waits for readiness and can verify the source hash after a connection loss.
+
+This is a sound foundation. Do not replace it with blind whole-file rewrites or a duplicate editing subsystem. Keep the source hash as part of the generation input record.
+
+**Important limit:** the post-disconnect SHA check proves only that the source file changed as expected. It does not prove the modified script compiled, that its menu item was registered after reload, or that a scene-generation run succeeded.
+
+### 2. Readiness is not compile-success evidence
+
+The server's `refresh_unity` operation can request compilation, wait for `mcpforunity://editor/state` to report readiness, and time out if readiness is not restored. The resource has fields such as `is_compiling`, `is_domain_reload_pending` and compile/reload timestamps.
+
+That establishes an Editor lifecycle boundary, not a successful-build result. The observed readiness schema does not carry a structured list of Unity compiler errors. Source-level `validate_script` is helpful before the compile, but should not be described as equivalent to the project's actual Unity compilation result.
+
+**Recommendation:** after a script change, the workflow must distinguish (a) source validation, (b) Unity compile/reload completion, and (c) absence of blocking compiler errors. Use structured compiler status if the bridge already exposes it; otherwise add the narrowest reliable diagnostic needed, such as a compile-result snapshot or a bounded compiler-error query. Do not infer compile success from a successful refresh response or a ready Editor alone.
+
+### 3. Menu invocation lacks a completion receipt
+
+The C# menu handler calls `EditorApplication.ExecuteMenuItem(menuPath)`. If Unity accepts the path, the success message says the item was attempted and directs the caller to Unity logs for confirmation/errors. It cannot report whether a project-owned scene generator finished, which scene it changed, whether saving completed, or whether custom postconditions passed.
+
+The Python wrapper also uses the normal transport call without explicitly choosing uncertain-outcome behavior for a side-effectful generator action. The transport defaults `retry_on_reload` to true unless overridden. This does **not** prove that every invocation will be duplicated; it means the wrapper's public contract does not give this workflow an explicit, tested distinction between a command rejected before execution and a response lost after execution may have begun.
+
+**Recommendation:** do not use a generic menu-item success response as proof of scene-generation success. Give the generator invocation a stable request/run ID and a receipt that can be queried after reconnect. A result should say whether the run was accepted, running, succeeded, failed or uncertain, and should carry the same run ID across retries/status reads. If the first response is lost, reconcile the existing run before starting another one.
+
+### 4. Scene validation is not the generator's acceptance test
+
+The current scene tools provide useful scene identity, load/save and general validation functionality. Those operations are not automatically tied to a specific generator invocation or an authored specification. A successful scene save can still contain wrong asset references, unexpected object counts, wrong layers/materials, missing required components or a visually invalid result.
+
+**Recommendation:** put project-specific assertions beside the generator and have it emit a concise validation report. The MCP layer should capture/retrieve that report and expose actionable failures. Avoid turning success verification into a full hierarchy dump.
+
+## Recommended end-to-end operation contract
+
+The default loop should be:
+
+1. **Resolve and record identity:** target Unity instance/project, generator source path, source SHA-256, output scene path and declared ownership boundary.
+2. **Edit once:** use the existing SHA-guarded structured edit path; return the updated SHA and a concise diff.
+3. **Validate source:** return diagnostics from source validation. On errors, stop before requesting generator execution.
+4. **Compile and wait:** request the Unity compile/reload path and wait for Editor readiness. Separately confirm that the actual Unity compilation has no blocking errors. Do not treat readiness alone as success.
+5. **Invoke once:** run the named, project-owned generator against the declared target. Give the operation a unique run ID; do not rely on a generic menu-invocation acknowledgement as the completion result.
+6. **Track completion:** reconcile run ID/status after disconnects or timeouts instead of blindly resending the start command. Distinguish failed-to-start, running, succeeded, failed and unknown outcome.
+7. **Validate the generated scene:** assertions run in the generator or a dedicated read-only validator. Verify scene path/identity, required scene roots and domain-specific counts, missing scripts, asset references, required component/property values, save result and relevant visual/rendering invariants.
+8. **Promote only on success:** keep a recoverable last-known-good scene or stage the output where practical. Report whether output was saved/promoted, left dirty, or marked failed.
+9. **Return a compact report:** run ID, target project/scene, generator source hash/version, status, elapsed time, assertion totals, actionable failures/warnings, save state and optional screenshot/report handles. Keep the full diagnostic payload opt-in.
+10. **Fix the source and rerun:** if assertions fail, make the correction in the generator source and regenerate. Do not repair generated objects through separate direct mutation calls.
+
+A dedicated `run_scene_generator` action may be warranted if the existing menu path cannot carry a run ID or return/retrieve a bounded completion report. Prefer a narrow operation contract backed by the existing transport, editor-state and scene tools over a broad new orchestration framework. Before adding that action, test whether a project-owned generator can publish and retrieve the same receipt through existing mechanisms with equivalent reliability.
+
+## Acceptance tests
+
+| Test | Required assertion |
+|---|---|
+| Valid generator source | Source validation passes, Unity compile/reload completes, and only then can invocation start. |
+| Source has a compiler error | The run is rejected with actionable compiler diagnostics; generator is not invoked and the output scene is unchanged. |
+| Reload disconnect after edit | Source SHA is reconciled, Editor readiness returns, and no duplicate source mutation occurs. |
+| Menu invocation returns but generator later fails | Final result is failed, not successful merely because the menu command was accepted. |
+| Response lost after invocation | Querying the same run ID returns the existing state; the start is not blindly duplicated. |
+| Wrong Unity project or output path | Invocation is rejected before modifying output. |
+| Generator throws before save | Failure stage and output/save state are reported; last-known-good output remains recoverable where the staging strategy promises it. |
+| Postcondition fails | Only the concise failed assertions are returned, including expected/actual values and relevant generator section/path. |
+| Same input run twice | Semantic scene output converges; duplicate generated content does not accumulate. |
+| Change one generator input | Only the declared generated scene/region is changed; unrelated hand-authored content is preserved. |
+| Asset/reference problem | Missing or ambiguous references are explicit errors, not silent substitutions. |
+| Normal successful run | Default response is bounded; no full scene hierarchy is emitted. |
+| Two Unity Editors connected | The run receipt and output scene belong to the intended instance/project. |
+
+## Priority decision
+
+Keep this under **P1.11 — make script-first deterministic scene generation the primary authoring contract**. The source audit sharpens P1.11 rather than justifying another set of CRUD tools. The most important implementation seam is **compile-success evidence plus a durable generator-run receipt**. Treat it as an integration gap to test, not a claim that all existing primitives are unusable.
+
+No runtime source or tests were changed during this audit.

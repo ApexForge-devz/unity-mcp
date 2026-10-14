@@ -37,6 +37,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Source-review C# wrapper aliases, compiler-specific error-line translation, and the accuracy of CodeDom/Roslyn hints.
 - [x] Review GameObject deletion's Undo gap against Unity's documented Undo contract and the upstream round-trip regression test; later reclassify it as deferred for the script-first agent workflow.
 - [x] Incorporate the agent's deterministic scene-generation/regeneration workflow as the default authoring assumption and downgrade direct scene CRUD recommendations.
+- [x] Deep-audit script edit guards, compile/reload readiness, menu-item invocation semantics and missing generator completion receipts.
 - [ ] Enumerate and classify direct forks of the target/upstream using a reproducible complete listing.
 - [ ] Systematically review meaningful forks-of-forks and all fork candidates with ahead-of-upstream code.
 - [ ] Diff the high-value candidates file-by-file and map changes to all corresponding target handlers/tests.
@@ -64,6 +65,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Execute Code diagnostics review](EXECUTE_CODE_DIAGNOSTICS_REVIEW.md)
 - [GameObject deletion and Undo review — deferred for this agent workflow](GAMEOBJECT_DELETE_UNDO_REVIEW.md)
 - [Deterministic script-first scene authoring workflow](DETERMINISTIC_SCENE_AUTHORING.md)
+- [Deterministic scene-generator lifecycle source audit](DETERMINISTIC_GENERATOR_LIFECYCLE_REVIEW.md)
 - [MCP modern/legacy protocol compatibility plan](PROTOCOL_COMPATIBILITY.md)
 - [Recent in-scope upstream proposal review (2026-10-14)](RECENT_UPSTREAM_PR_REVIEW_2026-10-14.md)
 - [Upstream branch, issue and PR tracking](UPSTREAM_BRANCH_COMPARISON.md)

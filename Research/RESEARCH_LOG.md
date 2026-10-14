@@ -576,3 +576,27 @@ Reprioritization:
 - The agent should not read an entire hierarchy by default; the generator should emit compact assertions/summary, with narrow read-only probes only when needed.
 
 This update changes research priorities and documentation only. No runtime source or tests were changed/run.
+
+
+## Deterministic generator lifecycle source audit — 2026-10-14
+
+Reviewed the persistent script-edit, validation, compilation/readiness, menu invocation, editor-state and scene lifecycle paths in the target `beta` source.
+
+**Confirmed existing primitives:**
+- `ManageScript.cs` requires a precondition SHA for text edits, rejects stale source, validates edits, writes transactionally and schedules/imports script refresh.
+- `script_apply_edits.py` and `refresh_unity.py` use reload-aware mutation recovery and can wait for Editor readiness.
+- `refresh_unity` can request compilation; the editor-state resource exposes compile/reload state and timestamps.
+- `manage_scene` provides scene lifecycle, save and general validation actions.
+- `execute_menu_item` invokes a menu path through `EditorApplication.ExecuteMenuItem`.
+
+**Gap established by current contracts:**
+- A verified script SHA is not compile-success evidence.
+- An Editor-ready snapshot is not a structured compiler result.
+- The generic menu-item handler returns an invocation-attempt acknowledgement, not final generator state, output scene identity, save result or custom validation report.
+- The menu wrapper does not declare a generator run ID and does not override the transport's default retry-on-reload setting. This is an uncertain-outcome test requirement, not proof that every call currently duplicates execution.
+
+Added [DETERMINISTIC_GENERATOR_LIFECYCLE_REVIEW.md](DETERMINISTIC_GENERATOR_LIFECYCLE_REVIEW.md), linked it from the research README and extended P1.11 with these source-level findings. Recommendation: test a compact run receipt through existing mechanisms first; introduce a narrow generator operation/status contract only if the current pieces cannot reconcile completion reliably. Preserve the script-first workflow and do not make direct scene CRUD the default.
+
+Evidence links: [ManageScript.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ManageScript.cs), [refresh_unity.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/refresh_unity.py), [editor_state.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/resources/editor_state.py), [ExecuteMenuItem.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/ExecuteMenuItem.cs), [execute_menu_item.py](https://github.com/ApexForge-devz/unity-mcp/blob/beta/Server/src/services/tools/execute_menu_item.py).
+
+This was a documentation/source-review pass only. No Unity Editor or repository tests were run.

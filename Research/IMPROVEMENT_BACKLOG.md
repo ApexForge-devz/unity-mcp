@@ -222,6 +222,11 @@ Do not rewrite the architecture or inflate tool count. Keep the Python MCP servi
 
 **Detailed workflow and tool mapping:** [DETERMINISTIC_SCENE_AUTHORING.md](DETERMINISTIC_SCENE_AUTHORING.md).
 
+
+**Source-audit addendum (2026-10-14):** the remaining workflow gap is now mapped to the current beta handlers, not inferred from missing tool names. Script edit recovery can verify the new source SHA, but that is not evidence of successful Unity compilation. `refresh_unity` waits for Editor readiness, while `mcpforunity://editor/state` exposes compiling/reload flags and timestamps rather than a structured compiler-error result. `execute_menu_item` reports that the menu item was attempted and does not return the generator's final result/save/validation status or a generator run ID. Its wrapper also inherits the ordinary `retry_on_reload=true` default; test uncertain outcomes and avoid blind re-invocation when a generator may already have run. See [DETERMINISTIC_GENERATOR_LIFECYCLE_REVIEW.md](DETERMINISTIC_GENERATOR_LIFECYCLE_REVIEW.md).
+
+Implementation refinement: first prove whether a project-owned generator can publish a bounded run receipt through existing mechanisms. If it cannot reliably correlate completion after reconnect, add only the narrow missing run-ID/status contract. Keep compile success distinct from readiness and keep generator assertions distinct from generic scene validation.
+
 ## P2 — Reliability and high-value domain work
 
 ### P2.1 Editor main-thread liveness and retry safety
