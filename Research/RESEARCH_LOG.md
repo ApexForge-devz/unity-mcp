@@ -660,3 +660,16 @@ Sources:
 - [Session management](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.frame-debugger/Editor/Scripts/FrameSession.cs)
 - [Profile I/O and comparison](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.frame-debugger/Editor/Scripts/FrameProfile.cs)
 - [Fake-backend test suite](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.frame-debugger/Tests/Editor/FrameDebuggerTests.cs)
+
+
+## Existing scene screenshot capabilities and resource bounds — 2026-10-14
+
+Inspected `ManageScene.cs`, `ScreenshotUtility.cs`, `EditorWindowScreenshotUtility.cs`, `ScreenshotCapturerTests.cs` and `ScreenshotUtilityDownscaleTests.cs` to determine whether the generator workflow needs a new visual capture tool.
+
+**Already available:** `manage_scene.screenshot` offers inline `imageBase64`, Game View or Scene View capture, explicit camera or positioned capture, and six-angle/orbit contact sheets; `scene_view_frame` frames a target or aggregate renderer bounds. `manage_camera.screenshot` delegates to the same capture implementation. Screenshot folder resolution rejects paths outside the project root and sanitizes filenames. Existing tests cover no-end-of-frame timeout cleanup, fallback semantics in batch mode (when graphics are available), linear/sRGB downscale fidelity and no-upscale behavior.
+
+**Correct workflow implication:** perform targeted visual inspection after generation using the current tool, instead of adding another screenshot API. For actual player presentation prefer inline composited Game View capture in Play Mode and inspect `captureSource` / `fallbackReason`; camera fallback does not include Screen Space Overlay/UI Toolkit, and Scene View is an Editor viewport, not final player output. Non-inline ScreenCapture requests may return before the image file is ready. A before/after Frame Debugger comparison must use an exported profile across generator domain reload.
+
+**Request-bounds gaps:** `PrepareCaptureResult` uses `Mathf.Max(1, superSize)` with no upper cap; the camera path multiplies width/height before allocation, while `max_resolution` only reduces the inline payload—not the original render/file. The orbit API clamps `orbit_angles` but does not cap `orbit_elevations` or total views; contact-sheet composition allocates one combined Texture2D and a `Color32[sheetWidth * sheetHeight]` buffer. Recommend checked dimension math, pixel/byte budgets, explicit view limits, finite/valid angle checks and early rejection.
+
+The orbit/surround code documents contact sheets as inline-only but includes an `outputFolder` field; clarify that this is metadata, not a saved contact-sheet path. See [SCENE_VISUAL_VALIDATION_AUDIT.md](SCENE_VISUAL_VALIDATION_AUDIT.md). No Unity Editor/tests were run in this pass.

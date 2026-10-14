@@ -84,6 +84,10 @@ Consequently, it can scan a large hierarchy the agent would otherwise avoid read
 
 **Recommendation:** put project-specific assertions beside the generator and have it emit a concise validation report. The MCP layer should capture/retrieve that report and expose actionable failures. Prefer assertions scoped to the generated scene/region; do not turn successful generation verification into a full hierarchy walk or an automatic scene repair.
 
+## Existing visual inspection tools
+
+The target already has screenshot pathways; the end-to-end generator contract should call those rather than introduce a parallel screenshot tool. `manage_scene.screenshot` returns inline image bytes when `include_image=true`, supports `capture_source=game_view|scene_view`, camera/position targeting and surround/orbit contact sheets; `manage_scene.scene_view_frame` frames an explicit target. Use one bounded image after generation, then narrow diagnostics only when it reveals a problem. Verify fallback metadata before treating a camera render as a composited Game View. Do not trust the default async file-only request as ready bytes without a readiness check. Source findings and screenshot resource-bound gaps are documented in [SCENE_VISUAL_VALIDATION_AUDIT.md](SCENE_VISUAL_VALIDATION_AUDIT.md).
+
 ## Recommended end-to-end operation contract
 
 The default loop should be:
