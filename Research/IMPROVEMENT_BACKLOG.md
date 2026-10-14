@@ -342,6 +342,11 @@ See §3.6–§3.7 in the detailed review. These are source-review findings; no U
 **Upstream PR #1448:** [UPSTREAM_PR_1448_READ_CONSOLE_MCP_LOG_FILTER_REVIEW.md](UPSTREAM_PR_1448_READ_CONSOLE_MCP_LOG_FILTER_REVIEW.md) adds `include_mcp_logs` to the existing `read_console` operation and `--no-mcp-logs` to the CLI. It excludes only the known first-party rich-text/plain `MCP-FOR-UNITY` prefixes **before** severity/text filtering and count/page accounting, so project warnings/errors are not crowded out by bridge messages.
 
 **Decision — ADAPT (P2):** retain the default `include_mcp_logs=true` for bridge debugging; make exclusion opt-in for project/compiler/scene validation reads. Preserve project messages that merely mention MCP later in their text, and test the count/page boundary across formats. This filter changes returned query results only—it does not clear or suppress Unity's actual Console logs.
+### P2.22 Fixed Game View sizing with actual target-dimension verification
+
+**Upstream PR #1450:** [UPSTREAM_PR_1450_GAME_VIEW_SIZE_READBACK_REVIEW.md](UPSTREAM_PR_1450_GAME_VIEW_SIZE_READBACK_REVIEW.md) adds `get_game_view_size` and `set_game_view_size` within `manage_editor`, distinguishing selected preset/computed target size from allocated RenderTexture dimensions and waiting for settled readback. This can make screenshots comparable at a stable resolution after scene regeneration.
+
+**Decision — ADAPT selectively (P2, explicit visual QA only):** do not change resolution automatically for every generation. The feature relies on undocumented Unity internal Game View APIs and persistent shared presets; readback timeout can leave the preset changed. Treat `render_size`/`settled`/`matches_requested` as capture-setup validation, not proof of fresh screenshot pixels. Keep ownership checks, preserve user presets/focus, report partial outcomes, and validate on the actual supported Unity matrix. Consider a stricter pixel budget than 8192×8192 for low-VRAM agents.
 ### P2.5 Release/version/source alignment
 
 **Finding:** target Python package metadata says 10.3.0 while Unity package metadata has reported 10.3.1-beta.7. This may be intentional, but requires an explicit versioning rule. Metadata also retains upstream package/support references.

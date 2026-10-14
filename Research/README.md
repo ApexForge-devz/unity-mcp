@@ -75,6 +75,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [No-session recovery guidance proposal review](UPSTREAM_PR_1470_NO_SESSION_RECOVERY_REVIEW.md)
 - [Custom tool parameter-order proposal review](UPSTREAM_PR_1472_CUSTOM_TOOL_PARAMETER_ORDER_REVIEW.md)
 - [Read Console MCP-log filtering proposal review](UPSTREAM_PR_1448_READ_CONSOLE_MCP_LOG_FILTER_REVIEW.md)
+- [Fixed Game View size/readback proposal review](UPSTREAM_PR_1450_GAME_VIEW_SIZE_READBACK_REVIEW.md)
 - [Deterministic scene-generator lifecycle source audit](DETERMINISTIC_GENERATOR_LIFECYCLE_REVIEW.md)
 - [Existing scene visual validation capability audit](SCENE_VISUAL_VALIDATION_AUDIT.md)
 - [MCP modern/legacy protocol compatibility plan](PROTOCOL_COMPATIBILITY.md)
