@@ -44,6 +44,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Fork candidate register and search coverage](FORK_CANDIDATE_REGISTER.md)
 - [Specialist workflow source review](SPECIALIST_WORKFLOWS.md)
 - [MCP modern/legacy protocol compatibility plan](PROTOCOL_COMPATIBILITY.md)
+- [Upstream branch, issue and PR tracking](UPSTREAM_BRANCH_COMPARISON.md)
 
 ## Important interpretation rules
 
