@@ -135,8 +135,9 @@ These are recommendations. No Unity project was launched, no Python test suite o
 | 972c79cf2f69155ec36eb1833f4968ecbd0859eb | Stale Puerts/TypeScript fork findings |
 | d98bc62ca87c9202460c9a595322950feeff8514 | Expanded candidate register |
 | df88766bb853e91ca8d4e774957c084533ee6f50 | Dedicated specialist workflow review |
-| undefined | Current log version before this update |
-| undefined | (placeholder for this append's preceding file SHA; next commit supersedes prior log) |
+| f31d327d7ac50a41affb906c42054166960055b4 | Detailed MCP/FastMCP protocol compatibility plan |
+| dd1c02c723fd6fda2c2c2af57e7605fb45cfd3fc | README links candidate register and specialist review |
+| 81040d1d2d518304b53735fb5c6ac0804f5028eb | Expanded dated source research, fork count, and protocol notes |
 
 ## Remaining work, ordered
 
