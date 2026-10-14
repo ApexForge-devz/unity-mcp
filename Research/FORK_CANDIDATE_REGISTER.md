@@ -81,3 +81,37 @@ The broad search also returns demos, toy apps, tutorials, workflow repositories 
 5. Review every candidate with meaningful ahead commits rather than sampling only popular repos.
 6. Record a decision and source evidence in FORK_COMPARISONS.md and RESEARCH_LOG.md.
 7. Keep this research labelled incomplete until the coverage criteria are met.
+
+
+## D. Additional source-checked candidates discovered in later search passes
+
+These were found by additional searches for MCPForUnity, frame debugger, memory profiler and related package terms.
+
+| Repository | Evidence reviewed | Candidate judgment |
+|---|---|---|
+| [czmomocha/unity-coplayDev-mcp](https://github.com/czmomocha/unity-coplayDev-mcp) | Compare: 8 ahead, 1,541 behind, 32 files changed. New TypeScript/TSX management for Puerts; custom-tool guide; Unity 2020 compatibility notes. | Useful specialist contribution for Puerts projects; forward-port selectively because branch is extremely stale. See FORK_COMPARISONS.md. |
+| [Kayungko/McpForUnityChinese](https://github.com/Kayungko/McpForUnityChinese) | README describes a source-level Chinese UI patch applied to resolved com.coplaydev.unity-mcp files, with backups/rollback and reapplication after package resolution. | Useful evidence that localization is wanted by some users, but patching package-resolved files is fragile. Prefer a maintained localization layer like VRCLearn's source-level UI localization if localization is product scope. |
+| [JakeLee-057/MCPForUnity](https://github.com/JakeLee-057/MCPForUnity) | Package JSON reports com.coplaydev.unity-mcp 9.3.1; README is primarily an Editor plugin setup/troubleshooting guide. Compare endpoint returned 404. | Legacy docs/package snapshot; no unique code change demonstrated. |
+| [yunuscan/MCPForUnity](https://github.com/yunuscan/MCPForUnity) | Small repository with a separate package ID com.yunuscan.unitymcp version 0.1.0 and a README describing an early bridge. | Alternative/experimental implementation, not evidence of a feature missing from target without deeper source comparison. |
+| [sabriboughanmi/Unity-MCP-MemoryProfiler](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler) | Source-reviewed snapshot query/diff tools, bounded sessions and multiple EditMode suites. | Useful specialist workflow. Current target only captures/lists/compares snapshot file metadata; detailed query capability is a separate improvement. See SPECIALIST_WORKFLOWS.md. |
+| [Ozymandros/Unity-MCP-Server](https://github.com/Ozymandros/Unity-MCP-Server) | README describes a .NET server v3.1.0 with CI, CodeQL, release automation, NuGet/Docker distribution, and MCP 2025-11-25 support. | Independent alternative for typed deployment, hardening/packaging and CI patterns; only README reviewed so far. Protocol badge is older than the 2026 spec; inspect actual handler before drawing compatibility conclusions. |
+| [Pico-Developer/Unity-MCP-Extensions](https://github.com/Pico-Developer/Unity-MCP-Extensions) | README describes PICO XR 6.1.x blocks (VST/passthrough, controller, haptics, locomotion, spatial mesh and plane detection) and claims idempotent/non-destructive/ambiguity-aware operations. | Specialist SDK extension, not a generic MCP server replacement. Could be a pattern for optional XR capability modules if a project has a matching SDK. |
+| [Savidyaf/Unity-VFX-Graph-MCP-Tool](https://github.com/Savidyaf/Unity-VFX-Graph-MCP-Tool) | README labels it work-in-progress, states basic functionality was tested, and says its original direct-YAML approach was abandoned in favor of training AI to build the YAML editor. | **Do not adopt as-is.** Its own stated direction and limited validation are insufficient evidence of a maintained production-ready tool. It is a reminder to validate Graph serialization/editor APIs and Unity-version compatibility. |
+| [Ozymandros/unity-mcp-server-plugin](https://github.com/Ozymandros/unity-mcp-server-plugin) | README describes an independent Python/Semantic Kernel wrapper using stdio, process management, retries/health monitoring, input validation, log sanitization and dynamically discovered tools. | Potentially useful client/plugin lifecycle pattern; not a Unity editor feature gap. README-level. |
+| [czmomocha/unity-coplayDev-mcp](https://github.com/czmomocha/unity-coplayDev-mcp) | Latest commit history and source for manage_ts_script.py; typed file extension and allowed-root/path traversal checks are present. | In Puerts/TypeScript use cases, an optional scripted workflow. Don't enable by default in core for Unity C#-only projects. |
+
+### Search expansion coverage
+
+Later searches included:
+- com.coplaydev.unity-mcp fork:true
+- MCPForUnity fork:true (plus page 2)
+- Unity AI Game Developer fork:true
+- CoplayDev Unity fork:true
+- coplaydev-unity-mcp fork:true
+- frame debugger unity-mcp
+- memory profiler unity-mcp
+- unity-mcp fork:true pages 5–10
+
+The MCPForUnity-focused query surfaced 7 candidates. The frame-debugger query returned two direct specialist project names; the memory-profiler query returned one specialist project name. Broad pages 5–10 added 600 more result rows across the same relevance-ranked broad search, several of which are unrelated to direct upstream forkage.
+
+Do not sum query totals as unique forks: searches overlap heavily and may return the same repo more than once. Continue to distinguish confirmed comparisons from README-only candidates.
