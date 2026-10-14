@@ -172,3 +172,23 @@ Other cross-owner compare calls returned 404 for a few candidates (including a-n
 | [nowsprinting/mcp-extension-unity](https://github.com/nowsprinting/mcp-extension-unity) | JetBrains Rider extension | Source-level report of stale connection model during compilation/domain reload; realistic E2E test that invokes during compilation | Test design reference only; Rider RD APIs are not portable |
 
 These entries are adjacent implementations or toolkits, not direct forks of CoplayDev unless ancestry is demonstrated. They are added to the broader ecosystem survey and should not inflate the count of direct forks.
+
+
+## I. Additional confirmed direct forks from the active-candidate check (2026-10-14)
+
+Search query: `unity-mcp fork:only pushed:>2026-01-01` returned a broad page containing both CoplayDev-derived forks and unrelated repositories with similarly named projects. Parent metadata was checked for the candidates below before labeling them direct forks. Each listed ref was compared to `CoplayDev/unity-mcp:beta`.
+
+| Direct fork | Default ref | Pushed/updated snapshot | Compare result against upstream beta | Decision |
+|---|---|---|---|---|
+| [mcdmag/unity-mcp](https://github.com/mcdmag/unity-mcp) | beta | 2026-03-15 | 0 ahead; compare reports 1,000 behind | Stale mirror on default ref |
+| [ndruster/unity-mcp](https://github.com/ndruster/unity-mcp) | beta | 2026-03-16 | 0 ahead; 950 behind | Stale mirror on default ref |
+| [Leo1989666/unity-mcp](https://github.com/Leo1989666/unity-mcp) | beta | 2026-08-07 | 0 ahead; 283 behind | Stale mirror on default ref; update is still older than upstream beta |
+| [xiaoyaocloud/unity-mcp](https://github.com/xiaoyaocloud/unity-mcp) | beta | 2026-03-06 | 0 ahead; 1,100 behind | Stale mirror on default ref |
+| [lokyeye/unity-mcp](https://github.com/lokyeye/unity-mcp) | beta | 2026-03-09 | 0 ahead; 1,067 behind | Stale mirror on default ref |
+| [TippingGame/unity-mcp](https://github.com/TippingGame/unity-mcp) | beta | 2026-03-11 | 0 ahead; 1,018 behind | Stale mirror on default ref |
+| [25ankurpandey/unity-mcp](https://github.com/25ankurpandey/unity-mcp) | beta | 2026-02-03 | 0 ahead; 1,312 behind | Stale mirror on default ref |
+| [SedemQuame/unity-mcp](https://github.com/SedemQuame/unity-mcp) | beta | 2026-03-01 | 0 ahead; 1,121 behind | Stale mirror on default ref |
+| [nandez/unity-mcp](https://github.com/nandez/unity-mcp) | beta | 2026-03-15 | 0 ahead; 976 behind | Stale mirror on default ref |
+| [zw0713/unity-mcp](https://github.com/zw0713/unity-mcp) | beta | 2026-05-18 | 0 ahead; 674 behind | Stale mirror on default ref |
+
+The compare API's largest values are snapshots as returned by GitHub on this query; “zero ahead” is the important finding for the current default refs, not proof that a fork has no useful non-default branches. These are candidate-level checks, not an exhaustive fork inventory.
