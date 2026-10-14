@@ -54,6 +54,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Existing draft PR and upstream overlap](DRAFT_PR_AND_UPSTREAM_OVERLAP.md)
 - [Draft PR schema-compaction code review](DRAFT_PR_CODE_REVIEW.md)
 - [Draft PR modal liveness and scene-guard review](DRAFT_PR_MODAL_LIVENESS_REVIEW.md)
+- [ykh09242 AssetGen download and ZIP security review](FORK_YKH09242_ASSETGEN_SECURITY.md)
 - [Cross-repository operational reliability patterns](OPERATIONAL_RELIABILITY_PATTERNS.md)
 
 ## Important interpretation rules
