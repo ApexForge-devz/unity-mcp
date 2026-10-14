@@ -87,6 +87,19 @@ For a capture, when the callback reports success and the path exists, the candid
 
 The exported profile is a better cross-reload boundary than a session ID, but only after fixing the completeness problems in §3.1.
 
+### 3.6 The "incremental" work budget and cancellation status contract are not actually bounded end-to-end
+
+The tool `memoryprofiler-advance-open-operation` accepts caller-provided `maxSteps` (default 10), and `SnapshotSessionManager.AdvanceOpenOperation` loops until `stepsTaken == maxSteps` or post-processing completes. There is no upper clamp in the reviewed wrapper or manager. A caller can pass a very large positive value and turn an intentionally incremental, main-thread operation into a single long Editor-blocking call. Negative/zero values are also not validated as meaningful progress requests.
+
+The cancellation status path is contradictory. `CancelOpenOperation` changes the operation to `Cancelled`, disposes its native resources, and removes the operation record from `s_Operations`. A subsequent `GetOpenOperationStatus(operationId)` therefore no longer returns `Cancelled`; the missing-operation branch constructs a `Failed` result saying the operation was not found. The tool method returns the string `"Cancelled"` at the time of cancellation, but the advertised state sequence and later status polling cannot verify that terminal state. Keep a bounded terminal-status cache (with an explicit retention duration/count) or return a terminal receipt directly and make subsequent polls consistent. Do not keep every operation indefinitely just to preserve status.
+
+### 3.7 Caller-supplied filesystem paths need an explicit trust boundary
+
+The candidate documents absolute paths for `filePath`, capture `outputPath` and export `outputPath`. The reviewed capture/export engines normalize explicit paths but do not constrain writes to a dedicated project-owned output directory. Capture completion may delete an existing target before moving the temporary file, while export with `overwrite=true` writes directly to the final path. These operations are intentionally file-writing features, but an MCP-controlled arbitrary absolute path is broader than required for typical project diagnostics.
+
+Default output should remain in a dedicated project-local capture/export directory and all generated filenames should be unique by default. For explicit output paths, either constrain the destination to an allowed root by default or require a clearly documented opt-in/approval path for external locations and overwrites. Always validate the resolved parent path after canonicalization; a string prefix is not a containment test. Keep snapshot reading separate from output write permission.
+
+
 ### 3.5 Memory capture is not necessarily a capture of just runtime Play Mode
 
 Unity's documented API says an Editor invocation captures the Editor or the currently attached Player based on PlayerConnection target; it cannot capture Play Mode in isolation from Editor memory. Memory usage in the Editor can differ substantially from a development Player on the target device. Also, `NativeAllocationSites` and `NativeStackTraces` depend on whether the target build supports collection; requested flags can be ignored when unsupported.
@@ -108,8 +121,8 @@ Other boundaries:
 2. Add a small, optional action family under existing `manage_profiler`: capability/version status; async open/session list/close; basic summary and paged searches; object details/references; bounded paths-to-roots; saved-profile compare.
 3. Reuse the candidate's DTO/engine concepts where useful, but port to the target's transport and result/error conventions. Do not add 15 independent top-level MCP tools just because this package has that many; prefer coherent actions under the existing family.
 4. Make each action report whether data is complete, partial, unavailable or truncated. Preserve per-row identity/match confidence.
-5. Enforce the max-session bound across active operations plus sessions; bound operation records and release native objects on all terminal paths; report that an active native capture cannot be cancelled if the public API cannot stop it.
-6. Add incremental query/export work, safe atomic file handling and test fixtures before relying on memory comparisons for automated decisions.
+5. Enforce the max-session bound across active operations plus sessions; bound operation records and release native objects on all terminal paths; use bounded `maxSteps`; preserve consistent terminal status receipts; report that an active native capture cannot be cancelled if the public API cannot stop it.
+6. Add incremental query/export work, safe atomic file handling, a clear external-path/overwrite policy, and test fixtures before relying on memory comparisons for automated decisions.
 7. For generator workflow: save/export baseline before generator source changes; edit and compile the persistent generator; regenerate; capture after-state; then reopen/compare saved profiles. Always close loaded sessions when finished.
 
 ## Acceptance tests
@@ -130,6 +143,9 @@ Other boundaries:
 | Clean checkout without external `.snap` fixture | Snapshot-dependent test state is visible as skipped; CI requires or generates a documented safe fixture for those tests. |
 | Connected Player vs Editor capture | Reported metadata/file location matches the actual captured target and the output file is verified. |
 | Snapshot/profile disposal | All readers, native snapshot objects and operation records are released or evicted according to bounded policy. |
+| Caller passes extreme `maxSteps` | Step count is validated/clamped before main-thread iteration; one tool call cannot bypass the incremental-work budget. |
+| Cancelled open is polled afterward | Polling reports the same terminal `Cancelled` receipt within the documented retention window; it is not remapped to `Failed/not found`. |
+| Explicit capture/export path leaves project root | Write is rejected or follows an explicit external-path policy; no implicit arbitrary write/overwrite occurs. |
 
 ## Source references
 

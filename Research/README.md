@@ -23,6 +23,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [x] Produce an initial source-linked ranked improvement backlog.
 - [x] Expand the candidate register with additional fork searches and specialist repositories.
 - [x] Deepen source-level checks of Frame Debugger, Memory Profiler, asset dependency analysis, and The1Studio's divergent fork.
+- [x] Re-check Memory Profiler incremental-load budgets, cancellation status polling, and caller-supplied capture/export path boundaries.
 - [x] Review an independent operation-level facade's catalog, compaction, idempotency, and result-store source/tests.
 - [x] Record remaining limitations, commits and next actions in a dated research log.
 - [x] Cross-check the target's open draft PR against relevant upstream PRs and current GitHub Actions results.

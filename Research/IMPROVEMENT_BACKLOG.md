@@ -308,6 +308,13 @@ Do not copy the package unchanged: the reflection contract targets Unity interna
 
 **Detailed source review:** [FORK_MEMORY_PROFILER_REVIEW.md](FORK_MEMORY_PROFILER_REVIEW.md).
 
+**Additional source-audit pass (2026-10-15):** further inspection of the tool wrappers and lifecycle methods found:
+- `memoryprofiler-advance-open-operation` exposes `maxSteps` (default 10), but the manager loops to that caller value without an upper clamp. Extreme input can defeat incremental loading and block the Editor main thread. Validate/clamp positive step budgets.
+- `CancelOpenOperation` disposes/removes the record immediately after setting `Cancelled`; subsequent status polls map the missing ID to `Failed / operation not found`. Preserve a bounded terminal receipt/status cache so cancellation can be reconciled accurately.
+- Explicit capture and export `outputPath` values are normalized but not confined to a dedicated project-owned root; capture also deletes the old destination before moving the temporary file. Use safe root policy, explicit external-path/overwrite consent, unique defaults and atomic/backup replacement.
+See §3.6–§3.7 in the detailed review. These are source-review findings; no Unity Editor tests were run.
+
+
 **Sources:** target [MemorySnapshotOps.cs](https://github.com/ApexForge-devz/unity-mcp/blob/beta/MCPForUnity/Editor/Tools/Profiler/Operations/MemorySnapshotOps.cs); candidate [SnapshotQueryEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/SnapshotQueryEngine.cs), [SnapshotDiffEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/SnapshotDiffEngine.cs), [MemoryProfilerExportEngine.cs](https://github.com/sabriboughanmi/Unity-MCP-MemoryProfiler/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.memory-profiler/Bridge/MemoryProfilerExportEngine.cs); Unity [TakeSnapshot documentation](https://docs.unity.com/en-us/engine/6000.5/script-reference/unity/profiling/memory/memoryprofiler/takesnapshot).
 ### P2.5 Release/version/source alignment
 
