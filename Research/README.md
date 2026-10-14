@@ -76,6 +76,7 @@ This folder is a living research record. Findings must be updated as source revi
 - [Draft PR schema-compaction code review](DRAFT_PR_CODE_REVIEW.md)
 - [Draft PR modal liveness and scene-guard review](DRAFT_PR_MODAL_LIVENESS_REVIEW.md)
 - [onlyfeng test-status cache review](FORK_ONLYFENG_TEST_STATUS_CACHE.md)
+- [Pashara Frame Debugger specialist fork review](FORK_PASHARA_FRAME_DEBUGGER_REVIEW.md)
 - [Serraya profiler expansion review](FORK_SERRAYA_PROFILER_REVIEW.md)
 - [Cross-repository operational reliability patterns](OPERATIONAL_RELIABILITY_PATTERNS.md)
 

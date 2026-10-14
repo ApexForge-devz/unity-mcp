@@ -636,3 +636,27 @@ Unity's official API references clarify a concrete implementation route for the 
 - `CompilationPipeline.compilationFinished` fires after the last per-assembly finish callback; the context supplied to `compilationStarted` and `compilationFinished` is the same object for that cycle, allowing diagnostics/counters to be aggregated under an actual cycle key. Do not assume the context has a stable string representation. ([Unity 7.0 API](https://docs.unity.com/en-us/engine/7000.0/script-reference/unityeditor/compilation/compilationpipeline/compilationfinished))
 
 The target's reviewed `EditorStateCache.cs` already tracks compilation lifecycle edges and timestamps, but does not collect these `CompilerMessage` diagnostics. Recommendation is now concrete: aggregate bounded compiler messages by compilation context; record outcome and counts before any domain reload; expose a compact compile-result summary to the existing editor-state/compile-status surface. Keep a Console-snapshot fallback only when direct pipeline data is unavailable or insufficient. Add cross-assembly attribution and stale-result clearing tests. This is an API-supported design proposal, not an implemented change; no Unity tests were run.
+
+
+## Pashara Frame Debugger specialist-fork review — 2026-10-14
+
+Reviewed `pashara/Unity-MCP-CoplayDev-FrameDebugger` source against the target's current `manage_profiler` / `FrameDebuggerOps` implementation.
+
+**Adaptation value:**
+- Async operation IDs/status/progress/cancel/timeout and per-tick processing rather than a long blocking capture.
+- Immutable capture sessions, event/tree hashes and on-demand event details, summary/search/diagnostics/profile diff.
+- Correctness checks for live/animated scenes: replay the paused frame without advancing simulation, associate details only when the payload event index matches, re-read changed event trees up to a fixed limit, and mark stale details unavailable rather than misattributing them.
+- Fake-backend tests covering event-tree drift, stale event details, cancellation, timeout, disconnection and profile comparison.
+
+**Workflow-specific detail:** Pashara `FrameSessionManager` holds at most four in-memory sessions and clears them on assembly reload and Editor quit. Since modifying/compiling a generator may cause a domain reload, export the before-profile before changing the generator, then capture and diff the regenerated scene's after-profile.
+
+**Risks:** relies heavily on Unity Editor internal reflection, needs Play Mode and a renderable Game View for local capture, can be slow in detailed mode, and its diagnostics are heuristic. The reviewed `FrameProfileIO.SaveProfile` uses `absolutePath.StartsWith(projectDir)`, not a path-boundary-aware containment test; `LoadProfile` does not apply the same project-root restriction; and overwrite deletes the existing destination before moving the temp file. The review requires canonical export-root validation on both reads and writes, safe overwrite semantics, explicit completeness reporting and live Unity-version smoke tests.
+
+**Decision:** ADAPT selected capture-consistency/session concepts through the existing `manage_profiler` tool; do not copy/install the whole package as a drop-in integration. No Unity Editor, C# or package tests were run in this review. See [FORK_PASHARA_FRAME_DEBUGGER_REVIEW.md](FORK_PASHARA_FRAME_DEBUGGER_REVIEW.md).
+
+Sources:
+- [Pashara package README](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/README.md)
+- [Capture state machine](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.frame-debugger/Editor/Scripts/FrameCaptureOperation.cs)
+- [Session management](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.frame-debugger/Editor/Scripts/FrameSession.cs)
+- [Profile I/O and comparison](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.frame-debugger/Editor/Scripts/FrameProfile.cs)
+- [Fake-backend test suite](https://github.com/pashara/Unity-MCP-CoplayDev-FrameDebugger/blob/main/Unity-Package/Packages/com.sabriboughanmi.unity.mcp.frame-debugger/Tests/Editor/FrameDebuggerTests.cs)
